@@ -1,2 +1,7 @@
-# Embedded-Machine-Vision-And-Intelligent-Automation
-Consists of Projects and Assignments Completed in Embedded Machine Vision and Intelligent Automation Course | ECEN 5763 | University of Colorado, Boulder.
+# Embedded-Machine-Vision-and-Intelligent-Automation
+
+Projects/Assignments completed under Prof. Sam Siewert in Embedded Machine Vision and Intelligent Automation.
+
+Each Folder consists of a readme file describing about the Project/Assignment/Homework.
+
+Contributor - Siddhant Jajoo
