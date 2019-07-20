@@ -9,21 +9,21 @@ CPPLIBS= -L/usr/lib -lopencv_core -lopencv_flann -lopencv_video
 
 HFILES= 
 CFILES= 
-CPPFILES= hough_line.cpp
+CPPFILES= skeletal.cpp
 
 SRCS= ${HFILES} ${CFILES}
 CPPOBJS= ${CPPFILES:.cpp=.o}
 
-all:	hough_line
+all:	skeletal
 
 clean:
 	-rm -f *.o *.d cvtest*.ppm cvtest*.pgm test*.ppm test*.pgm
-	-rm -f hough_line
+	-rm -f skeletal
 
 distclean:
 	-rm -f *.o *.d
 
-hough_line: hough_line.o
+skeletal: skeletal.o
 	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $@.o `pkg-config --libs opencv` $(CPPLIBS)
 
 
