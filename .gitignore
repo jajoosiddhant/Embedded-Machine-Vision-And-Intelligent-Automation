@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+#Video files
+*.avi
+*.mp4
