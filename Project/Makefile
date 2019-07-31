@@ -7,23 +7,23 @@ CFLAGS= -O0 -g $(INCLUDE_DIRS) $(CDEFS)
 LIBS= -lrt
 CPPLIBS= -L/usr/lib -lopencv_core -lopencv_flann -lopencv_video
 
-HFILES= 
+HFILES= main.h 
 CFILES= 
-CPPFILES= pilot.cpp
+CPPFILES= main.cpp
 
 SRCS= ${HFILES} ${CFILES}
 CPPOBJS= ${CPPFILES:.cpp=.o}
 
-all:	pilot
+all:	main
 
 clean:
-	-rm -f *.o *.d cvtest*.ppm cvtest*.pgm test*.ppm test*.pgm
-	-rm -f pilot
+	-rm -f *.o *.d 
+	-rm -f main
 
 distclean:
 	-rm -f *.o *.d
 
-pilot: pilot.o
+main: main.o
 	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $@.o `pkg-config --libs opencv` $(CPPLIBS)
 
 
