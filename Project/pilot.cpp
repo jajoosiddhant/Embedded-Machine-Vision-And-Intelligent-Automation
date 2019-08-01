@@ -35,7 +35,7 @@ using namespace std;
 //Hough Lines Threshold Values
 #define	HOUGH_THRESHOLD				(40)
 #define	HOUGH_MIN_LINE_LENGTH		(10)
-#define	HOUGH_MAX_LINE_GAP			(100)
+#define	HOUGH_MAX_LINE_GAP			(80)
 
 //Function Declarations
 Mat preprocess(Mat src);
@@ -127,29 +127,36 @@ int main(int argc, char** argv)
 		
 		//Increase Contrast to detect white lines and remove any disturbance due to road color.
 		equalizeHist(gray, contrast);
-		//imshow("Contrast Image", contrast);
+		imshow("Contrast Image", contrast);
 		//imshow("Half image and resolution and gray", gray);
 		
 		
 		//Convert Original Image to HLS
 		//Shows white as yellow.
 		cvtColor(src_half, hls, COLOR_BGR2HLS);
-		//imshow("HLS", hls);
-			
-		inRange(hls, Scalar(20,100,0), Scalar(40,255,50), white);
-		//imshow("HLS white", white);
+		imshow("HLS", hls);
+		
+		//Lower value of Saturation makes changes. i.e middle one. Reducing the lower saturation value includes yellow lanes and background as well	
+		//If want to incorpotate yellow lines change lower threshold of saturation to 70
+		inRange(hls, Scalar(20,100,0), Scalar(40,255,255), white);					
+		imshow("HLS white", white);
 		
 		
+		// Original
 		//Convert Original Image to HSV
 		//Shows yellow as yellow.
 		cvtColor(src_half, hsv, COLOR_BGR2HSV);
 		imshow("HSV", hsv);
 		
-		inRange(hsv, Scalar(20,90,100), Scalar(40,255,150), yellow);
+		//Brightness makes the difference (eliminates background) - Do not change brightness value. i.e the last value (80)
+		//Saturation value makes changes i.e middle one. If want to make the yellow lines more bold increase upper saturation value. above 100 introduces background.
+		inRange(hsv, Scalar(20,0,80), Scalar(40,255,255), yellow); 					
 		imshow("HSV YELLOW", yellow);
-
+		
+		
+		
 		bitwise_or(white, yellow, mask);
-		//imshow("Mask", mask);
+		imshow("Mask", mask);
 		
 		bitwise_and(contrast, mask, lanes_detect);
 		imshow("lanes Detected", lanes_detect);
@@ -171,7 +178,7 @@ int main(int argc, char** argv)
 		
 		//imshow("ROI MASK", roi_mask);
 
-		imshow("Canny", edge);
+		//imshow("Canny", edge);
 
 		bitwise_and(edge, roi_mask, canny_roi);
 		//imshow("Canny Mask", canny_roi);
