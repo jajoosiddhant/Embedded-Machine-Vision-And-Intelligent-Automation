@@ -203,7 +203,7 @@ int main(int argc, char** argv)
 		{
 			Vec4i l = lines[i];
 			
-			slope = (double)(l[3] - l[1])/(l[2] - l[0]);
+			slope = (double)((l[3] - l[1])/(double)(l[2] - l[0]));
 			if (slope > 0.5 || slope < (-0.5))
 			{
 				line( src_res, Point(l[0], l[1] + src_res.rows/2), Point(l[2], l[3] + src_res.rows/2), Scalar(0,0,255), 3, CV_AA);	
