@@ -110,11 +110,44 @@ int main(int argc, char** argv)
 	Mat roi_mask;
 	Mat canny_roi;
 	vector<Vec4i> lines;
+	
 	double slope;
+	int midpoint_x, midpoint_y;
+	double left_slope;
+	double left_intercept;
+	double left_avg_slope;
+	double left_avg_intercept;
+	
+	double right_slope;
+	double right_intercept;
+	double right_avg_slope;
+	double right_avg_intercept;
+	
+	int x1, x2, y1, y2;
+	
+	vector<Vec4i> global_left;
 	
 	while(capture.read(src))
 	{	
 
+		slope = 0;
+		midpoint_x = 0, midpoint_y = 0;
+		left_slope = 0;
+		left_intercept = 0;
+		left_avg_slope = 0;
+		left_avg_intercept = 0;
+		
+		right_slope = 0;
+		right_intercept = 0;
+		right_avg_slope = 0;
+		right_avg_intercept = 0;
+	
+	
+		x1 =0;
+		x2 = 0;
+		y1 = 0;
+		y2 = 0;
+		
 		//Preprocess frames
 		//Reduce the resolution by 2
 		pyrDown(src, src_res);
@@ -180,23 +213,27 @@ int main(int argc, char** argv)
 		Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);	//Can change to false
 
 		//Add ROI function here
-		Point roi_pt[1][3];
-		int num = 3;
+		Point roi_pt[1][4];
+		int num = 4;
 		roi_mask = Mat::zeros(Size(src_half.cols, src_half.rows), CV_8U);
 		//Points for ROI mask
-		roi_pt[0][0] = Point(src_half.cols/2, 0);					//Apex
-		roi_pt[0][1] = Point(0, src_half.rows);						//Bottom left vertice
-		roi_pt[0][2] = Point(src_half.cols, src_half.rows);			//Bottomk right vertice
+		roi_pt[0][0] = Point(2*src_half.cols/5, src_half.rows/5);					//Apex
+		roi_pt[0][1] = Point(3*src_half.cols/5, src_half.rows/5);
+		roi_pt[0][3] = Point(src_half.cols/5, src_half.rows);						//Bottom left vertice
+		roi_pt[0][2] = Point(4*src_half.cols/5 , src_half.rows);			//Bottomk right vertice
 		const Point* pts_list[1] = {roi_pt[0]};
-		fillPoly(roi_mask, pts_list, &num, 1, 255, 8);
+		fillPoly(roi_mask, pts_list, &num, 1, 255, 8);						//Change to fillConvexPolly for faster results
 		
-		//imshow("ROI MASK", roi_mask);
+		imshow("ROI MASK", roi_mask);
 
 		//imshow("Canny", edge);
 
 		bitwise_and(edge, roi_mask, canny_roi);
-		//imshow("Canny Mask", canny_roi);
+		imshow("Canny Mask", canny_roi);
 		
+		vector<Vec4i> left;
+		vector<Vec4i> right;
+		//avg_x;
 		//Detect and Draw Lines
 		HoughLinesP(canny_roi, lines, 1, CV_PI/180, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP );
 		for( size_t i = 0; i < lines.size(); i++ )
@@ -206,11 +243,104 @@ int main(int argc, char** argv)
 			slope = (double)((l[3] - l[1])/(double)(l[2] - l[0]));
 			if (slope > 0.5 || slope < (-0.5))
 			{
-				line( src_res, Point(l[0], l[1] + src_res.rows/2), Point(l[2], l[3] + src_res.rows/2), Scalar(0,0,255), 3, CV_AA);	
+				//cout << "y = " << l[0] << "and threshold" << src_res.cols/2 << endl;
+				if(l[0] < (src_res.cols/2))
+				{
+					left.push_back(lines[i]);
+				}
+				else
+				{
+					right.push_back(lines[i]);
+				}
+				
+				//line( src_res, Point(l[0], l[1] + src_res.rows/2), Point(l[2], l[3] + src_res.rows/2), Scalar(0,0,255), 3, CV_AA);	
 			}
 			
 		}
+		
+		
+		for( size_t i = 0; i < left.size(); i++ )
+		{
+			Vec4i lc = left[i];
+			//left_slope = (double)((lc[3] - lc[1])/(double)(lc[2] - lc[0]));
+			//left_intercept = (lc[3] - lc[1]) - (left_slope*(lc[2] - lc[0]));
+			//left_avg_slope += left_slope;
+			//left_avg_intercept += left_intercept;
+			//line( src_res, Point(lc[0], lc[1] + src_res.rows/2), Point(lc[2], lc[3] + src_res.rows/2), Scalar(0,0,255), 3, CV_AA);
+		
+			x1 += lc[0];
+			y1 += lc[1];
+			x2 += lc[2];
+			y2 += lc[3]; 
+		}
+		
+		x1 = x1/left.size();
+		y1 = y1/left.size();
+		x2 = x2/left.size();
+		y2 = y2/left.size();
+		
+		//Adding history to improve results
+		Vec4i left_history(x1, y1, x2, y2);
+	
+		global_left.push_back(left_history);
+		//cout << "Average Slope = " << left_avg_slope << " average intercept = " << left_avg_intercept << endl;
+		//Drawing single line in place of multiple lines.
 
+
+		x1 = 0;
+		y1 = 0;
+		x2 = 0;
+		y2 = 0;
+		
+		for( size_t i = 0; i < global_left.size(); i++ )
+		{
+			Vec4i glc = global_left[i];
+			x1 += glc[0];
+			y1 += glc[1];
+			x2 += glc[2];
+			y2 += glc[3]; 
+		}
+
+		x1 = x1/global_left.size();
+		y1 = y1/global_left.size();
+		x2 = x2/global_left.size();
+		y2 = y2/global_left.size();
+		
+
+		/*
+		int x1, y1, x2, y2;
+		y1 = 0;
+		y2 = y1 + src_res.rows/2;
+		x1 = (int)((y1 - left_avg_intercept)/left_avg_slope);
+		x2 = (int)((y2 - left_avg_intercept)/left_avg_slope);
+		*/ 
+		
+		line( src_res, Point(x1, y1 + src_res.rows/2), Point(x2, y2 + src_res.rows/2), Scalar(0,0,255), 3, CV_AA);
+		
+
+		x1 = 0;
+		y1 = 0;
+		x2 = 0;
+		y2 = 0;
+				
+		for( size_t i = 0; i < right.size(); i++ )
+		{
+			Vec4i rc = right[i];
+			
+			x1 += rc[0];
+			y1 += rc[1];
+			x2 += rc[2];
+			y2 += rc[3]; 
+			//line( src_res, Point(rc[0], rc[1] + src_res.rows/2), Point(rc[2], rc[3] + src_res.rows/2), Scalar(0,0,255), 3, CV_AA);
+		}
+		
+		x1 = x1/right.size();
+		y1 = y1/right.size();
+		x2 = x2/right.size();
+		y2 = y2/right.size();
+				
+		line( src_res, Point(x1, y1 + src_res.rows/2), Point(x2, y2 + src_res.rows/2), Scalar(0,0,255), 3, CV_AA);		
+		
 		//Can use pyrUp to -revert to original resolution before displaying.
 		imshow("Final", src_res);
 
