@@ -110,6 +110,7 @@ int main(int argc, char** argv)
 	Mat roi_mask;
 	Mat canny_roi;
 	vector<Vec4i> lines;
+	double slope;
 	
 	while(capture.read(src))
 	{	
@@ -130,17 +131,31 @@ int main(int argc, char** argv)
 		imshow("Contrast Image", contrast);
 		//imshow("Half image and resolution and gray", gray);
 		
-		
+		 
 		//Convert Original Image to HLS
 		//Shows white as yellow.
 		cvtColor(src_half, hls, COLOR_BGR2HLS);
 		imshow("HLS", hls);
 		
 		//Lower value of Saturation makes changes. i.e middle one. Reducing the lower saturation value includes yellow lanes and background as well	
-		//If want to incorpotate yellow lines change lower threshold of saturation to 70
-		inRange(hls, Scalar(20,100,0), Scalar(40,255,255), white);					
+		//If want to incorpotate yellow lines change lower threshold of saturation to 70 or keep 100.
+		inRange(hls, Scalar(20,100,0), Scalar(40,255,50), white);				//brightness can be 0 to 50 also.	
 		imshow("HLS white", white);
 		
+		/*
+			//ALTERNATE
+		//Convert Original Image to HLS
+		//Shows white as yellow.
+		cvtColor(src_half, hls, COLOR_RGB2HLS);
+		imshow("HLS", hls);
+		
+		//Lower value of Saturation makes changes. i.e middle one. Reducing the lower saturation value includes yellow lanes and background as well	
+		//If want to incorpotate yellow lines change lower threshold of saturation to 70 or keep 100.
+		inRange(hls, Scalar(60,100,30), Scalar(100,255,255), white);				//brightness can be 0 to 50 also.	
+		imshow("HLS white", white);
+		*/
+
+
 		
 		// Original
 		//Convert Original Image to HSV
@@ -150,9 +165,8 @@ int main(int argc, char** argv)
 		
 		//Brightness makes the difference (eliminates background) - Do not change brightness value. i.e the last value (80)
 		//Saturation value makes changes i.e middle one. If want to make the yellow lines more bold increase upper saturation value. above 100 introduces background.
-		inRange(hsv, Scalar(20,0,80), Scalar(40,255,255), yellow); 					
+		inRange(hsv, Scalar(20,80,80), Scalar(40,255,255), yellow); 					
 		imshow("HSV YELLOW", yellow);
-		
 		
 		
 		bitwise_or(white, yellow, mask);
@@ -188,12 +202,16 @@ int main(int argc, char** argv)
 		for( size_t i = 0; i < lines.size(); i++ )
 		{
 			Vec4i l = lines[i];
-			l[1] += src_res.rows/2;
-			l[3] += src_res.rows/2;
-			line( src_res, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 3, CV_AA);
+			
+			slope = (double)(l[3] - l[1])/(l[2] - l[0]);
+			if (slope > 0.5 || slope < (-0.5))
+			{
+				line( src_res, Point(l[0], l[1] + src_res.rows/2), Point(l[2], l[3] + src_res.rows/2), Scalar(0,0,255), 3, CV_AA);	
+			}
+			
 		}
 
-		//Can use pyrUp to revert to original resolution before displaying.
+		//Can use pyrUp to -revert to original resolution before displaying.
 		imshow("Final", src_res);
 
 
