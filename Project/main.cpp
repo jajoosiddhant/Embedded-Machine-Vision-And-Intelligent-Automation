@@ -1,4 +1,57 @@
 #include "main.h"
+/*
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
+#include <pthread.h>
+#include <sys/time.h>
+#include <sys/sysinfo.h>
+#include <time.h>
+#include <signal.h>
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include "opencv2/objdetect/objdetect.hpp"
+
+using namespace cv;
+using namespace std;
+
+#define COLS	(320)
+#define ROWS	(240)
+#define NSEC_PER_SEC	(1000000000)
+
+#define PED_DETECT_TH	(0)
+#define LANE_FOLLOW_TH	(1)
+#define SIGN_RECOG_TH	(2)
+#define VEH_DETECT_TH	(3)
+
+#define NUM_THREADS	(4)
+
+bool exit_cond, done;
+char output_frame[40];
+int iterations, cpucore, g_frame_cnt, numberOfProcessors;
+
+struct timespec g_start_time, g_stop_time, g_diff_time;
+typedef struct
+{
+    int threadIdx;
+} threadParams_t;
+
+pthread_t threads[NUM_THREADS];
+threadParams_t threadParams[NUM_THREADS];
+pthread_attr_t rt_sched_attr[NUM_THREADS];
+
+Mat g_frame;
+
+//int delta_t(struct timespec *, struct timespec *, struct timespec *);
+
+//void* pedestrian_detect(void*);
+//void* lane_follower(void*);
+//void* sign_recog(void*);
+//void* vehicle_detect(void*);
+*/
 
 void signal_handler(int signo, siginfo_t *info, void *extra)
 {
@@ -57,15 +110,18 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
 }
 
 
-void* processing_th(void* threadp)
+void* pedestrian_detect(void* threadp)
 {
-	bool done;
-	int iterations=0, cpucore;
 	char c;
-	pthread_t thread;
+	int frame_cnt = 0;
+	struct timespec start_time, stop_time, diff_time;
 	cpu_set_t cpuset;
+	pthread_t thread;
+	pthread_mutex_t mutex;
 	
-	Mat src, gray, binary, mfblur,temp, eroded, RGB_skel;
+	Mat mat, resz_mat;
+	vector<Rect> found_loc;
+	
 	threadParams_t* threadParams = (threadParams_t*)threadp;
 	printf("Thread %d initialized\n", threadParams->threadIdx);
 
@@ -79,77 +135,91 @@ void* processing_th(void* threadp)
 		if(CPU_ISSET(i, &cpuset))  printf(" CPU-%d ", i);
 	printf("\n");
 	
+	HOGDescriptor hog;
+	hog.setSVMDetector(HOGDescriptor::getDefaultPeopleDetector());
+	
+    	clock_gettime(CLOCK_REALTIME, &start_time);
 	while(1)
 	{
-		pthread_mutex_lock(&mutex);
-		capture_frame = cvQueryFrame(capture);
-		pthread_mutex_unlock(&mutex);
-		src = cvarrToMat(capture_frame);
-//		imshow("Video Stream", src);		// show original source image and wait for input to next step
+		//semaphore from main
+		mat = g_frame.clone();
+		resize(mat, resz_mat, Size(COLS, ROWS));
+		//	resize(mat, resz_mat, Size(800, 533));
 
-		cvtColor(src, gray, CV_BGR2GRAY);	// show graymap of source image and wait for input to next step
-//		imshow("graymap 1", gray);
-
-		threshold(gray, binary, THRESHOLD, MAX_THRESHOLD, CV_THRESH_BINARY);	// show bitmap of source image and wait for input to next step
-
-		binary = MAX_THRESHOLD - binary;			//Perform image subtraction sinceforeground is generally darker than background
-//		imshow("binary 1", binary);
-
-		medianBlur(binary, mfblur, 3);		// To remove median filter, just replace blurr value with 1
-//		imshow("medianblur 1", mfblur);
-
-		/*This section of code was adapted from the following post, which was based in turn on the Wikipedia description of a morphological skeleton 
-		 * http://felix.abecassis.me/2011/09/opencv-morphological-skeleton */
-
-		Mat element = getStructuringElement(MORPH_CROSS, Size(3, 3));
-		Mat skel(mfblur.size(), CV_8UC1, Scalar(0));
-		iterations = 0;
-		do
+		hog.detectMultiScale(resz_mat, found_loc, 0, Size(4, 4), Size(8, 8), 1.05, 2, false);
+		for(int i=0; i<found_loc.size(); i++)
 		{
-			erode(mfblur, eroded, element);		//Erode boundary edges of object
-			dilate(eroded, temp, element);		//Extend original object to compensate for loss of data
-			subtract(mfblur, temp, temp);		//Subtract to obtain only increased sections of object
-			bitwise_or(skel, temp, skel);		//Save increased sections of each iteration in skel
-			eroded.copyTo(mfblur);
+			rectangle(resz_mat, found_loc[i], (0, 0, 255), 4);
+		}
 
-			done = (countNonZero(mfblur) == 0);	//Check for completely black image
-			iterations++;
-
-		} while (!done && (iterations < 100));
-		cvtColor(skel, RGB_skel, CV_GRAY2BGR);		// show graymap of source image and wait for input to next step
-		sprintf(output_frame, "./frames/frame%d.jpg", frame_cnt);
+		imshow("Detector", resz_mat);
+		imshow("Video", mat);
 		frame_cnt++;
-//		printf("In thread %d \n", threadParams->threadIdx);
 
-		imwrite(output_frame, RGB_skel);		//save output frames in folder
-
-//		c = cvWaitKey(33);
-		if((c==27) || (exit_cond))
+		c = cvWaitKey(10);
+		if((c == 27) || (exit_cond))
 		{
-			printf("Exiting thread %d\n", threadParams->threadIdx);
-			pthread_exit(NULL);
+			clock_gettime(CLOCK_REALTIME, &stop_time);
+			delta_t(&stop_time, &start_time, &diff_time);
+			printf("Pedestrian thread number of frames: %d\n", frame_cnt);
+			printf("Pedestrian duration: %ld seconds\n", diff_time.tv_sec);
+			printf("Pedestrian average FPS: %ld\n", (frame_cnt/diff_time.tv_sec));
+			break;
 		}
 	}
 }
 
 
+void* lane_follower(void* threadp)
+{
+	for(int i=0; i<250; i++)
+	{
+		i++;
+	}
+	pthread_exit(NULL);
+
+}
+
+
+void* sign_recog(void* threadp)
+{
+	for(int i=0; i<250; i++)
+	{
+		i++;
+	}
+	pthread_exit(NULL);
+
+}
+
+
+void* vehicle_detect(void* threadp)
+{
+	for(int i=0; i<250; i++)
+	{
+		i++;
+	}
+	pthread_exit(NULL);
+
+}
+
 int main(int argc, char** argv)
 {
 	int rc, coreid;
 	char c;
-	struct timespec start_time, stop_time, diff_time;
 	cpu_set_t allcpuset;
 	cpu_set_t threadcpu;
-	
+
 	useconds_t usec = 10;
-	frame_cnt = 0;
-	
-	capture = cvCreateCameraCapture(0);
-//	if(!cap.isOpened())  			// check if we succeeded
-//		return -1;
+	g_frame_cnt = 0;
+	VideoCapture capture(argv[1]);
 
 	set_signal_handler();
 	exit_cond = false;
+
+//	VideoWriter output_v;
+//	Size size = Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH)/2,
+//			 (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)/2);		//Size of capture object, height and width
+//	output_v.open("output.avi", CV_FOURCC('M','P','4','V'), cap.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
 
 	numberOfProcessors = get_nprocs_conf(); 
 	printf("This system has %d processors configured and %d processors available.\n\n", numberOfProcessors, get_nprocs());
@@ -160,7 +230,7 @@ int main(int argc, char** argv)
 		CPU_SET(i, &allcpuset);
 
 
-	clock_gettime(CLOCK_REALTIME, &start_time);
+	clock_gettime(CLOCK_REALTIME, &g_start_time);
 
 	for(int i=0; i < NUM_THREADS; i++)
 	{
@@ -177,29 +247,55 @@ int main(int argc, char** argv)
 		rc=pthread_attr_setaffinity_np(&rt_sched_attr[i], sizeof(cpu_set_t), &threadcpu);
 
 		threadParams[i].threadIdx=i;
-
-		pthread_create(&threads[i],   // pointer to thread descriptor
-				(pthread_attr_t*)&(rt_sched_attr[i]),     // use default attributes
-				processing_th, // thread function entry point
-				(void *)&(threadParams[i]) // parameters to pass in
-			      );
-		usleep(usec);
 	}
-	printf("\nAll threads initialized\n");
+
+
+	pthread_create(&threads[PED_DETECT_TH],   // pointer to thread descriptor
+			(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     // use default attributes
+			pedestrian_detect, // thread function entry point
+			(void *)&(threadParams[PED_DETECT_TH]) // parameters to pass in
+		      );
+	usleep(usec);
+
+	pthread_create(&threads[LANE_FOLLOW_TH],   // pointer to thread descriptor
+			(pthread_attr_t*)&(rt_sched_attr[LANE_FOLLOW_TH]),     // use default attributes
+			lane_follower, // thread function entry point
+			(void *)&(threadParams[LANE_FOLLOW_TH]) // parameters to pass in
+		      );
+	usleep(usec);
+	
+	pthread_create(&threads[SIGN_RECOG_TH],   // pointer to thread descriptor
+			(pthread_attr_t*)&(rt_sched_attr[SIGN_RECOG_TH]),     // use default attributes
+			sign_recog, // thread function entry point
+			(void *)&(threadParams[SIGN_RECOG_TH]) // parameters to pass in
+		      );
+	usleep(usec);
+
+	pthread_create(&threads[VEH_DETECT_TH],   // pointer to thread descriptor
+			(pthread_attr_t*)&(rt_sched_attr[VEH_DETECT_TH]),     // use default attributes
+			vehicle_detect, // thread function entry point
+			(void *)&(threadParams[VEH_DETECT_TH]) // parameters to pass in
+		      );
+	usleep(usec);
+
 	while(1)
 	{
+		capture >> g_frame;
+		//semaphores for threads
+		
 		c = cvWaitKey(33);
 		if((c == 27) || (exit_cond))
 		{
-			clock_gettime(CLOCK_REALTIME, &stop_time);
-			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
-			printf("Number of frames: %d\n", frame_cnt);
-			printf("Duration: %ld seconds\n", diff_time.tv_sec);
-			printf("Average FPS: %ld\n", (frame_cnt/diff_time.tv_sec));
+			clock_gettime(CLOCK_REALTIME, &g_stop_time);
+			delta_t(&g_stop_time, &g_start_time, &g_diff_time);		//Obtain time difference
+			printf("Number of frames: %d\n", g_frame_cnt);
+			printf("Duration: %ld seconds\n", g_diff_time.tv_sec);
+			printf("Average FPS: %ld\n", (g_frame_cnt/g_diff_time.tv_sec));
 			break;
 		}
-	}
+
 	for(int i=0;i<NUM_THREADS;i++)
 		pthread_join(threads[i], NULL);
+	}
 	return 0;
 }

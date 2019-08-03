@@ -1,31 +1,29 @@
-INCLUDE_DIRS = 
+INCLUDE_DIRS = -I/
 LIB_DIRS = 
 CC=g++
 
 CDEFS=
-CFLAGS= -O0 -g $(INCLUDE_DIRS) $(CDEFS)
 LIBS= -lrt
 CPPLIBS= -L/usr/lib -lopencv_core -lopencv_flann -lopencv_video -lpthread
 
-HFILES= main.h 
+HFILES=
 CFILES= 
-CPPFILES= main.cpp
+CPPFILES= main.cpp 
 
 SRCS= ${HFILES} ${CFILES}
 CPPOBJS= ${CPPFILES:.cpp=.o}
 
-all:	main
+all:	main 
 
 clean:
-	-rm -f *.o *.d 
-	-rm -f main
+	-rm -f *.o *.d
+	-rm -f smart_car	
 
 distclean:
 	-rm -f *.o *.d
 
-main: main.o
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $@.o `pkg-config --libs opencv` $(CPPLIBS)
-
+main: $(CPPOBJS)
+	$(CC) $(CFLAGS) -o smart_car $(CPPOBJS) `pkg-config --libs opencv` $(CPPLIBS)
 
 depend:
 
@@ -34,3 +32,5 @@ depend:
 
 .cpp.o:
 	$(CC) $(CFLAGS) -c $<
+
+
