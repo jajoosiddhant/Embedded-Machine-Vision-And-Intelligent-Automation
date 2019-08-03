@@ -7,6 +7,7 @@
 #include <sys/sysinfo.h>
 #include <time.h>
 #include <signal.h>
+#include <semaphore.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -27,6 +28,12 @@ using namespace std;
 
 #define NUM_THREADS	(4)
 
+#define handle_error(msg) \
+	{ \
+		perror(msg); \
+		exit(1); \
+	} \
+
 bool exit_cond, done;
 char output_frame[40];
 int iterations, cpucore, g_frame_cnt, numberOfProcessors;
@@ -37,11 +44,18 @@ typedef struct
     int threadIdx;
 } threadParams_t;
 
+struct img_cooordinates
+{
+	vector<Rect> found_loc;
+} img_char;
+
 pthread_t threads[NUM_THREADS];
 threadParams_t threadParams[NUM_THREADS];
 pthread_attr_t rt_sched_attr[NUM_THREADS];
 
 Mat g_frame;
+
+sem_t th1_sem, main_sem;
 
 //int delta_t(struct timespec *, struct timespec *, struct timespec *);
 

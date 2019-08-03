@@ -9,6 +9,7 @@
 #include <sys/sysinfo.h>
 #include <time.h>
 #include <signal.h>
+#include <semaphore.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -120,7 +121,7 @@ void* pedestrian_detect(void* threadp)
 	pthread_mutex_t mutex;
 	
 	Mat mat, resz_mat;
-	vector<Rect> found_loc;
+//	vector<Rect> found_loc;
 	
 	threadParams_t* threadParams = (threadParams_t*)threadp;
 	printf("Thread %d initialized\n", threadParams->threadIdx);
@@ -141,19 +142,22 @@ void* pedestrian_detect(void* threadp)
     	clock_gettime(CLOCK_REALTIME, &start_time);
 	while(1)
 	{
+		sem_wait(&th1_sem);
 		//semaphore from main
 		mat = g_frame.clone();
 		resize(mat, resz_mat, Size(COLS, ROWS));
 		//	resize(mat, resz_mat, Size(800, 533));
 
-		hog.detectMultiScale(resz_mat, found_loc, 0, Size(4, 4), Size(8, 8), 1.05, 2, false);
-		for(int i=0; i<found_loc.size(); i++)
-		{
-			rectangle(resz_mat, found_loc[i], (0, 0, 255), 4);
-		}
+		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(4, 4), Size(8, 8), 1.05, 2, false);
 
-		imshow("Detector", resz_mat);
-		imshow("Video", mat);
+		sem_post(&main_sem);
+//		for(int i=0; i<found_loc.size(); i++)
+//		{
+//			rectangle(resz_mat, found_loc[i], (0, 0, 255), 4);
+//		}
+
+//		imshow("Detector", resz_mat);
+//		imshow("Video", mat);
 		frame_cnt++;
 
 		c = cvWaitKey(10);
@@ -161,9 +165,10 @@ void* pedestrian_detect(void* threadp)
 		{
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);
-			printf("Pedestrian thread number of frames: %d\n", frame_cnt);
+			printf("\nPedestrian thread number of frames: %d\n", frame_cnt);
 			printf("Pedestrian duration: %ld seconds\n", diff_time.tv_sec);
 			printf("Pedestrian average FPS: %ld\n", (frame_cnt/diff_time.tv_sec));
+			printf("Exiting thread %d\n", threadParams->threadIdx);
 			break;
 		}
 	}
@@ -213,8 +218,15 @@ int main(int argc, char** argv)
 	g_frame_cnt = 0;
 	VideoCapture capture(argv[1]);
 
+	Mat detector;
+
 	set_signal_handler();
 	exit_cond = false;
+
+	if(sem_init(&th1_sem, 0, 0) == -1)
+		handle_error("sem_init");
+	if(sem_init(&main_sem, 0, 0) == -1)
+		handle_error("sem_init");
 
 //	VideoWriter output_v;
 //	Size size = Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH)/2,
@@ -281,21 +293,33 @@ int main(int argc, char** argv)
 	while(1)
 	{
 		capture >> g_frame;
+
+		sem_post(&th1_sem);
+		detector = g_frame.clone();
+		resize(detector, detector, Size(COLS, ROWS));
 		//semaphores for threads
+
+		sem_wait(&main_sem);
+		g_frame_cnt++;
+		for(int i=0; i<img_char.found_loc.size(); i++)
+		{
+			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
+		}
 		
 		c = cvWaitKey(33);
 		if((c == 27) || (exit_cond))
 		{
 			clock_gettime(CLOCK_REALTIME, &g_stop_time);
 			delta_t(&g_stop_time, &g_start_time, &g_diff_time);		//Obtain time difference
-			printf("Number of frames: %d\n", g_frame_cnt);
+			printf("\nNumber of frames: %d\n", g_frame_cnt);
 			printf("Duration: %ld seconds\n", g_diff_time.tv_sec);
 			printf("Average FPS: %ld\n", (g_frame_cnt/g_diff_time.tv_sec));
 			break;
 		}
-
+		imshow("Video", g_frame);
+		imshow("Detector", detector);
+	}
 	for(int i=0;i<NUM_THREADS;i++)
 		pthread_join(threads[i], NULL);
-	}
 	return 0;
 }
