@@ -41,6 +41,7 @@ using namespace std;
 Mat preprocess(Mat src);
 Mat detect_draw_lanes(Mat edge, Mat frame);
 Mat detect_draw_vehicle(Mat edge, Mat frame);
+Mat getroi(Mat edge);
 void help(void);
 
 //Global Variable Declaration
@@ -104,8 +105,10 @@ int main(int argc, char** argv)
 	Mat contrast;	
 	Mat hls, hsv, mask;
 	Mat white, yellow;
-	Mat hello;
+	Mat lanes_detect;
 	Mat blur, edge;
+	Mat roi_mask;
+	Mat canny_roi;
 	vector<Vec4i> lines;
 	
 	while(capture.read(src))
@@ -133,42 +136,58 @@ int main(int argc, char** argv)
 		cvtColor(src_half, hls, COLOR_BGR2HLS);
 		//imshow("HLS", hls);
 			
+		inRange(hls, Scalar(20,100,0), Scalar(40,255,50), white);
+		//imshow("HLS white", white);
+		
 		
 		//Convert Original Image to HSV
 		//Shows yellow as yellow.
 		cvtColor(src_half, hsv, COLOR_BGR2HSV);
-		//imshow("HSV", hsv);
-		
-		inRange(hls, Scalar(20,100,0), Scalar(40,255,50), white);
-		//imshow("HLS white", white);
+		imshow("HSV", hsv);
 		
 		inRange(hsv, Scalar(20,90,100), Scalar(40,255,150), yellow);
-		//imshow("HSV YELLOW", yellow);
+		imshow("HSV YELLOW", yellow);
 
 		bitwise_or(white, yellow, mask);
 		//imshow("Mask", mask);
 		
-		bitwise_and(contrast, mask, hello);
-		imshow("Hello", hello);
+		bitwise_and(contrast, mask, lanes_detect);
+		imshow("lanes Detected", lanes_detect);
 		
 		//Applying gaussian filter to reduce noise followed by canny transform for edge detection.
-		GaussianBlur( hello, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
+		GaussianBlur( lanes_detect, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
 		Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);	//Can change to false
+
+		//Add ROI function here
+		Point roi_pt[1][3];
+		int num = 3;
+		roi_mask = Mat::zeros(Size(src_half.cols, src_half.rows), CV_8U);
+		//Points for ROI mask
+		roi_pt[0][0] = Point(src_half.cols/2, 0);					//Apex
+		roi_pt[0][1] = Point(0, src_half.rows);						//Bottom left vertice
+		roi_pt[0][2] = Point(src_half.cols, src_half.rows);			//Bottomk right vertice
+		const Point* pts_list[1] = {roi_pt[0]};
+		fillPoly(roi_mask, pts_list, &num, 1, 255, 8);
 		
+		//imshow("ROI MASK", roi_mask);
 
 		imshow("Canny", edge);
 
-
-		//Detect and Draw Lines
+		bitwise_and(edge, roi_mask, canny_roi);
+		//imshow("Canny Mask", canny_roi);
 		
-		HoughLinesP(edge, lines, 1, CV_PI/180, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP );
+		//Detect and Draw Lines
+		HoughLinesP(canny_roi, lines, 1, CV_PI/180, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP );
 		for( size_t i = 0; i < lines.size(); i++ )
 		{
 			Vec4i l = lines[i];
-			line( src_half, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 3, CV_AA);
+			l[1] += src_res.rows/2;
+			l[3] += src_res.rows/2;
+			line( src_res, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 3, CV_AA);
 		}
 
-		imshow("Final", src_half);
+		//Can use pyrUp to revert to original resolution before displaying.
+		imshow("Final", src_res);
 
 
 //		frame = src.clone();
