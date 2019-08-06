@@ -35,7 +35,7 @@ using namespace std;
 	} \
 
 bool exit_cond, done;
-char output_frame[40];
+char c, output_frame[40];
 int iterations, cpucore, g_frame_cnt, numberOfProcessors;
 
 struct timespec g_start_time, g_stop_time, g_diff_time;

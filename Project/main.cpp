@@ -113,7 +113,6 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
 
 void* pedestrian_detect(void* threadp)
 {
-	char c;
 	int frame_cnt = 0;
 	struct timespec start_time, stop_time, diff_time;
 	cpu_set_t cpuset;
@@ -142,15 +141,16 @@ void* pedestrian_detect(void* threadp)
     	clock_gettime(CLOCK_REALTIME, &start_time);
 	while(1)
 	{
-		sem_wait(&th1_sem);
+		sem_wait(&main_sem);
 		//semaphore from main
 		mat = g_frame.clone();
+		cvtColor(mat, mat, CV_BGR2GRAY);
 		resize(mat, resz_mat, Size(COLS, ROWS));
 		//	resize(mat, resz_mat, Size(800, 533));
 
-		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(4, 4), Size(8, 8), 1.05, 2, false);
+		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
 
-		sem_post(&main_sem);
+		sem_post(&th1_sem);
 //		for(int i=0; i<found_loc.size(); i++)
 //		{
 //			rectangle(resz_mat, found_loc[i], (0, 0, 255), 4);
@@ -172,6 +172,7 @@ void* pedestrian_detect(void* threadp)
 			break;
 		}
 	}
+	pthread_exit(NULL);
 }
 
 
@@ -210,13 +211,20 @@ void* vehicle_detect(void* threadp)
 int main(int argc, char** argv)
 {
 	int rc, coreid;
-	char c;
 	cpu_set_t allcpuset;
 	cpu_set_t threadcpu;
 
 	useconds_t usec = 10;
 	g_frame_cnt = 0;
+
+	if(argc < 2)
+	{
+		printf("\nUsage: ./smart_car input_vdeo_file");
+		printf("\nExiting Program\n");
+		exit(1);
+	}
 	VideoCapture capture(argv[1]);
+	
 
 	Mat detector;
 
@@ -294,12 +302,12 @@ int main(int argc, char** argv)
 	{
 		capture >> g_frame;
 
-		sem_post(&th1_sem);
+		sem_post(&main_sem);
 		detector = g_frame.clone();
 		resize(detector, detector, Size(COLS, ROWS));
 		//semaphores for threads
 
-		sem_wait(&main_sem);
+		sem_wait(&th1_sem);
 		g_frame_cnt++;
 		for(int i=0; i<img_char.found_loc.size(); i++)
 		{
@@ -309,6 +317,7 @@ int main(int argc, char** argv)
 		c = cvWaitKey(33);
 		if((c == 27) || (exit_cond))
 		{
+			exit_cond = 1;
 			clock_gettime(CLOCK_REALTIME, &g_stop_time);
 			delta_t(&g_stop_time, &g_start_time, &g_diff_time);		//Obtain time difference
 			printf("\nNumber of frames: %d\n", g_frame_cnt);
@@ -321,5 +330,9 @@ int main(int argc, char** argv)
 	}
 	for(int i=0;i<NUM_THREADS;i++)
 		pthread_join(threads[i], NULL);
+	printf("\nExiting program\n");
+
+	sem_destroy(&th1_sem);
+	sem_destroy(&main_sem);
 	return 0;
 }
