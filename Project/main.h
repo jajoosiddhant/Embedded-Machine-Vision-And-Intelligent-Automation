@@ -31,7 +31,7 @@ using namespace std;
 #define handle_error(msg) \
 	{ \
 		perror(msg); \
-		exit(1); \
+		exit(EXIT_FAILURE); \
 	} \
 
 bool exit_cond, done;
@@ -55,7 +55,7 @@ pthread_attr_t rt_sched_attr[NUM_THREADS];
 
 Mat g_frame;
 
-sem_t th1_sem, main_sem;
+sem_t th1_sem, main_sem, th2_sem;
 
 //int delta_t(struct timespec *, struct timespec *, struct timespec *);
 

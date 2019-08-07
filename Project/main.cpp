@@ -69,7 +69,7 @@ void set_signal_handler(void)
 	if(sigaction(SIGINT, &action, NULL) == -1)
 	{
 		printf("Error calling signal handler\n");
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 }
 
@@ -178,10 +178,57 @@ void* pedestrian_detect(void* threadp)
 
 void* lane_follower(void* threadp)
 {
-	for(int i=0; i<250; i++)
+	int frame_cnt = 0;
+	struct timespec start_time, stop_time, diff_time;
+	cpu_set_t cpuset;
+	pthread_t thread;
+	pthread_mutex_t mutex;
+	
+//	Mat mat, resz_mat;
+//	vector<Rect> found_loc;
+	
+	threadParams_t* threadParams = (threadParams_t*)threadp;
+	printf("Thread %d initialized\n", threadParams->threadIdx);
+
+	thread = pthread_self();
+	cpucore = sched_getcpu();
+	CPU_ZERO(&cpuset);
+	pthread_getaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
+	
+	printf("Thread idx=%d running on core %d, affinity contained:", threadParams->threadIdx, cpucore);
+	for(int i=0; i<numberOfProcessors; i++)
+		if(CPU_ISSET(i, &cpuset))  printf(" CPU-%d ", i);
+	printf("\n");
+
+
+   	clock_gettime(CLOCK_REALTIME, &start_time);
+	while(1)
 	{
-		i++;
+		sem_wait(&main_sem);
+
+		//semaphore from main
+		//mat = g_frame.clone();
+
+		cout << "Hello lane detect" << endl;
+
+		frame_cnt++;
+		sem_post(&th2_sem);
+
+
+
+		c = cvWaitKey(10);
+		if((c == 27) || (exit_cond))
+		{
+			clock_gettime(CLOCK_REALTIME, &stop_time);
+			delta_t(&stop_time, &start_time, &diff_time);
+			printf("\nLane thread number of frames: %d\n", frame_cnt);
+			printf("Lane duration: %ld seconds\n", diff_time.tv_sec);
+			printf("Lane average FPS: %ld\n", (frame_cnt/diff_time.tv_sec));
+			printf("Exiting Lane thread %d\n", threadParams->threadIdx);
+			break;
+		}
 	}
+
 	pthread_exit(NULL);
 
 }
@@ -225,7 +272,6 @@ int main(int argc, char** argv)
 	}
 	VideoCapture capture(argv[1]);
 	
-
 	Mat detector;
 
 	set_signal_handler();
@@ -234,6 +280,8 @@ int main(int argc, char** argv)
 	if(sem_init(&th1_sem, 0, 0) == -1)
 		handle_error("sem_init");
 	if(sem_init(&main_sem, 0, 0) == -1)
+		handle_error("sem_init");
+	if(sem_init(&th2_sem, 0, 0) == -1)
 		handle_error("sem_init");
 
 //	VideoWriter output_v;
@@ -269,13 +317,14 @@ int main(int argc, char** argv)
 		threadParams[i].threadIdx=i;
 	}
 
-
+/*
 	pthread_create(&threads[PED_DETECT_TH],   // pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     // use default attributes
 			pedestrian_detect, // thread function entry point
 			(void *)&(threadParams[PED_DETECT_TH]) // parameters to pass in
 		      );
 	usleep(usec);
+*/
 
 	pthread_create(&threads[LANE_FOLLOW_TH],   // pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[LANE_FOLLOW_TH]),     // use default attributes
@@ -306,13 +355,16 @@ int main(int argc, char** argv)
 		detector = g_frame.clone();
 		resize(detector, detector, Size(COLS, ROWS));
 		//semaphores for threads
-
+/*
 		sem_wait(&th1_sem);
 		g_frame_cnt++;
+
 		for(int i=0; i<img_char.found_loc.size(); i++)
 		{
 			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
 		}
+*/		
+		sem_wait(&th2_sem);
 		
 		c = cvWaitKey(33);
 		if((c == 27) || (exit_cond))
@@ -328,11 +380,13 @@ int main(int argc, char** argv)
 		imshow("Video", g_frame);
 		imshow("Detector", detector);
 	}
+	
 	for(int i=0;i<NUM_THREADS;i++)
 		pthread_join(threads[i], NULL);
 	printf("\nExiting program\n");
 
 	sem_destroy(&th1_sem);
 	sem_destroy(&main_sem);
+	sem_destroy(&th2_sem);
 	return 0;
 }
