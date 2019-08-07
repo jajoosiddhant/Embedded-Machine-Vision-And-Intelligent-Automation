@@ -113,35 +113,26 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
 
 void* pedestrian_detect(void* threadp)
 {
-	int frame_cnt = 0;
-	struct timespec start_time, stop_time, diff_time;
-	cpu_set_t cpuset;
-	pthread_t thread;
-	pthread_mutex_t mutex;
-	
-	Mat mat, resz_mat;
-//	vector<Rect> found_loc;
-	
+	//Variable Declaration
 	threadParams_t* threadParams = (threadParams_t*)threadp;
-	printf("Thread %d initialized\n", threadParams->threadIdx);
+	struct timespec start_time;
+	int frame_cnt = 0;
 
-	thread = pthread_self();
-	cpucore = sched_getcpu();
-	CPU_ZERO(&cpuset);
-	pthread_getaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
-	
-	printf("Thread idx=%d running on core %d, affinity contained:", threadParams->threadIdx, cpucore);
-	for(int i=0; i<numberOfProcessors; i++)
-		if(CPU_ISSET(i, &cpuset))  printf(" CPU-%d ", i);
-	printf("\n");
-	
+	Mat mat, resz_mat;
+//	vector<Rect> found_loc;	
 	HOGDescriptor hog;
 	hog.setSVMDetector(HOGDescriptor::getDefaultPeopleDetector());
+			
+	//Printing thread information 
+	threadcpu_info(threadParams);
 	
-    	clock_gettime(CLOCK_REALTIME, &start_time);
+	//Note Start time to calculate FPS
+   	clock_gettime(CLOCK_REALTIME, &start_time);
+	
+
 	while(1)
 	{
-		sem_wait(&main_sem);
+		sem_wait(&sem_main);
 		//semaphore from main
 		mat = g_frame.clone();
 		cvtColor(mat, mat, CV_BGR2GRAY);
@@ -150,7 +141,9 @@ void* pedestrian_detect(void* threadp)
 
 		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
 
-		sem_post(&th1_sem);
+		cout << "Hello Pedestrians" << endl;
+		frame_cnt++;
+		sem_post(&sem_pedestrian);
 //		for(int i=0; i<found_loc.size(); i++)
 //		{
 //			rectangle(resz_mat, found_loc[i], (0, 0, 255), 4);
@@ -158,77 +151,57 @@ void* pedestrian_detect(void* threadp)
 
 //		imshow("Detector", resz_mat);
 //		imshow("Video", mat);
-		frame_cnt++;
 
-		c = cvWaitKey(10);
+
+//		c = cvWaitKey(10);
 		if((c == 27) || (exit_cond))
 		{
-			clock_gettime(CLOCK_REALTIME, &stop_time);
-			delta_t(&stop_time, &start_time, &diff_time);
-			printf("\nPedestrian thread number of frames: %d\n", frame_cnt);
-			printf("Pedestrian duration: %ld seconds\n", diff_time.tv_sec);
-			printf("Pedestrian average FPS: %ld\n", (frame_cnt/diff_time.tv_sec));
-			printf("Exiting thread %d\n", threadParams->threadIdx);
 			break;
 		}
 	}
+
+	//Calculating FPS for pedestrian detection
+	fps_calc(start_time, frame_cnt, FPS_PEDESTRIAN);
+
 	pthread_exit(NULL);
 }
 
 
 void* lane_follower(void* threadp)
 {
-	int frame_cnt = 0;
-	struct timespec start_time, stop_time, diff_time;
-	cpu_set_t cpuset;
-	pthread_t thread;
-	pthread_mutex_t mutex;
-	
-//	Mat mat, resz_mat;
-//	vector<Rect> found_loc;
-	
+	//Variable Declaration
 	threadParams_t* threadParams = (threadParams_t*)threadp;
-	printf("Thread %d initialized\n", threadParams->threadIdx);
-
-	thread = pthread_self();
-	cpucore = sched_getcpu();
-	CPU_ZERO(&cpuset);
-	pthread_getaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
+	struct timespec start_time;
+	int frame_cnt = 0;
+		
+	//Printing thread information 
+	threadcpu_info(threadParams);
 	
-	printf("Thread idx=%d running on core %d, affinity contained:", threadParams->threadIdx, cpucore);
-	for(int i=0; i<numberOfProcessors; i++)
-		if(CPU_ISSET(i, &cpuset))  printf(" CPU-%d ", i);
-	printf("\n");
-
-
+	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
+
 	while(1)
 	{
-		sem_wait(&main_sem);
-
-		//semaphore from main
-		//mat = g_frame.clone();
+		sem_wait(&sem_main);
 
 		cout << "Hello lane detect" << endl;
 
 		frame_cnt++;
-		sem_post(&th2_sem);
 
+		sem_post(&sem_lane);
 
-
-		c = cvWaitKey(10);
+		usleep(50000);
+		
 		if((c == 27) || (exit_cond))
 		{
-			clock_gettime(CLOCK_REALTIME, &stop_time);
-			delta_t(&stop_time, &start_time, &diff_time);
-			printf("\nLane thread number of frames: %d\n", frame_cnt);
-			printf("Lane duration: %ld seconds\n", diff_time.tv_sec);
-			printf("Lane average FPS: %ld\n", (frame_cnt/diff_time.tv_sec));
-			printf("Exiting Lane thread %d\n", threadParams->threadIdx);
 			break;
 		}
-	}
 
+	}
+	
+	//Calculating FPS for lane detection
+	fps_calc(start_time, frame_cnt, FPS_LANE);
+	
 	pthread_exit(NULL);
 
 }
@@ -236,10 +209,30 @@ void* lane_follower(void* threadp)
 
 void* sign_recog(void* threadp)
 {
+	//Variable Declaration
+	threadParams_t* threadParams = (threadParams_t*)threadp;
+	struct timespec start_time;
+	int frame_cnt = 0;
+		
+	//Printing thread information 
+	threadcpu_info(threadParams);
+	
+	//Note Start time to calculate FPS
+   	clock_gettime(CLOCK_REALTIME, &start_time);
+
+
 	for(int i=0; i<250; i++)
 	{
 		i++;
+		if((c == 27) || (exit_cond))
+		{
+			break;
+		}
 	}
+	
+	//Calculating FPS for sign detection
+	fps_calc(start_time, frame_cnt, FPS_SIGN);
+
 	pthread_exit(NULL);
 
 }
@@ -247,146 +240,342 @@ void* sign_recog(void* threadp)
 
 void* vehicle_detect(void* threadp)
 {
+	//Variable Declaration
+	threadParams_t* threadParams = (threadParams_t*)threadp;
+	struct timespec start_time;
+	int frame_cnt = 0;
+		
+	//Printing thread information 
+	threadcpu_info(threadParams);
+	
+	//Note Start time to calculate FPS
+   	clock_gettime(CLOCK_REALTIME, &start_time);
+
 	for(int i=0; i<250; i++)
 	{
 		i++;
+		if((c == 27) || (exit_cond))
+		{
+			break;
+		}
 	}
+	
+	//Calculating FPS for sign detection
+	fps_calc(start_time, frame_cnt, FPS_VEHICLE);
+
 	pthread_exit(NULL);
 
 }
 
 int main(int argc, char** argv)
 {
-	int rc, coreid;
-	cpu_set_t allcpuset;
-	cpu_set_t threadcpu;
-
-	useconds_t usec = 10;
-	g_frame_cnt = 0;
-
+	int frame_cnt = 0;
+	struct timespec start_time;
+	exit_cond = false;
+	
 	if(argc < 2)
 	{
-		printf("\nUsage: ./smart_car input_vdeo_file");
-		printf("\nExiting Program\n");
-		exit(1);
+		cout << endl << "Usage: ./smart_car input_vdeo_file" << endl;
+		cout << "Exiting Program";
+		exit(EXIT_FAILURE);
 	}
+
+	//Declaring VideoCapture and VideoWriter objects to read and write videos
 	VideoCapture capture(argv[1]);
-	
-	Mat detector;
-
-	set_signal_handler();
-	exit_cond = false;
-
-	if(sem_init(&th1_sem, 0, 0) == -1)
-		handle_error("sem_init");
-	if(sem_init(&main_sem, 0, 0) == -1)
-		handle_error("sem_init");
-	if(sem_init(&th2_sem, 0, 0) == -1)
-		handle_error("sem_init");
-
 //	VideoWriter output_v;
 //	Size size = Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH)/2,
 //			 (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)/2);		//Size of capture object, height and width
 //	output_v.open("output.avi", CV_FOURCC('M','P','4','V'), cap.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
 
-	numberOfProcessors = get_nprocs_conf(); 
-	printf("This system has %d processors configured and %d processors available.\n\n", numberOfProcessors, get_nprocs());
+	
+	Mat detector;
 
+	set_signal_handler();
+
+	//Initializing Semaphores
+	sem_create();
+
+	//Setting up core affinity for different services
+	thread_core_set();
+
+	//Creatintg 4 threads for individual services.
+	thread_create();
+		      
+	clock_gettime(CLOCK_REALTIME, &start_time);
+
+	while(1)
+	{
+		capture >> g_frame;
+
+		sem_post(&sem_main);
+		sem_post(&sem_main);
+		//sem_post(&sem_main);
+		//sem_post(&sem_main);
+		
+		detector = g_frame.clone();
+		resize(detector, detector, Size(COLS, ROWS));
+
+
+
+		for(int i=0; i<img_char.found_loc.size(); i++)
+		{
+			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
+		}
+		
+		//Counting number of frames
+		frame_cnt++;
+		
+		sem_wait(&sem_pedestrian);
+		sem_wait(&sem_lane);
+		//sem_wait(&sem_vehicle);
+		//sem_wait(&sem_sign);
+		
+		
+		c = waitKey(33);
+		if((c == 27) || (exit_cond))
+		{
+			break;
+		}
+
+		imshow("Video", g_frame);
+		imshow("Detector", detector);
+	}
+	
+	//Calculating Average FPS
+	fps_calc(start_time, frame_cnt, FPS_SYSTEM);
+
+	//Joining threads
+	for(int i=0;i<NUM_THREADS;i++)
+	{
+		pthread_join(threads[i], NULL);
+	}
+	
+	cout << "Exiting program" << endl;
+
+
+	//Destroying all Semaphores
+	sem_destroy_all();
+	
+	return 0;
+}
+
+
+/**
+ * @brief This function creates semaphores for the required threads.
+ * @param void
+ * @return void
+ */
+void sem_create(void)
+{
+	//Initializing Semaphores
+	if(sem_init(&sem_main, 0, 0) == -1)
+		handle_error("ERROR: sem_init for sem_main");
+	if(sem_init(&sem_pedestrian, 0, 0) == -1)
+		handle_error("ERROR: sem_init for sem_pedestrian");
+	if(sem_init(&sem_lane, 0, 0) == -1)
+		handle_error("ERROR: sem_init for sem_lane");
+	if(sem_init(&sem_vehicle, 0, 0) == -1)
+		handle_error("ERROR: sem_init for sem_vehicle");
+	if(sem_init(&sem_sign, 0, 0) == -1)
+		handle_error("ERROR: sem_init for sem_sign");	
+}
+
+
+/**
+ * @brief This function sets core affinity to individual required services.
+ * @param void
+ * @return void
+ */
+void thread_core_set(void)
+{
+	cpu_set_t allcpuset;
+	cpu_set_t threadcpu;
+	
+	cout << "This system has " << get_nprocs_conf() << " processors configured and " << get_nprocs() << " processors available" << endl << endl;
+	
 	CPU_ZERO(&allcpuset);
-
-	for(int i=0; i < numberOfProcessors; i++)
+	for(int i=0; i < get_nprocs_conf(); i++)
+	{
 		CPU_SET(i, &allcpuset);
-
-
-	clock_gettime(CLOCK_REALTIME, &g_start_time);
-
+	}
+	
 	for(int i=0; i < NUM_THREADS; i++)
 	{
+		int rc, coreid;
+		
+		//Setting individual cores to individual services
 		CPU_ZERO(&threadcpu);
-		coreid=i%numberOfProcessors;
-		printf("\nSetting thread %d to core %d ", i, coreid);
+		coreid=i%get_nprocs_conf();
+		cout << "Setting thread " << i << " to core " << coreid << endl;
 		CPU_SET(coreid, &threadcpu);
-		for(int idx=0; idx<numberOfProcessors; idx++)
+		for(int idx=0; idx<get_nprocs_conf(); idx++)
+		{
 			if(CPU_ISSET(idx, &threadcpu))  
-				printf(" CPU-%d ", idx);
-		printf("\nLaunching thread %d\n", i);
+			{
+				cout << " CPU-" << idx << endl;
+			}
+		}
+		cout << "Launching thread " << i << endl << endl;
 
+		//handle error condition here
 		rc=pthread_attr_init(&rt_sched_attr[i]);
 		rc=pthread_attr_setaffinity_np(&rt_sched_attr[i], sizeof(cpu_set_t), &threadcpu);
 
 		threadParams[i].threadIdx=i;
 	}
 
-/*
-	pthread_create(&threads[PED_DETECT_TH],   // pointer to thread descriptor
-			(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     // use default attributes
-			pedestrian_detect, // thread function entry point
-			(void *)&(threadParams[PED_DETECT_TH]) // parameters to pass in
-		      );
-	usleep(usec);
-*/
+}
 
-	pthread_create(&threads[LANE_FOLLOW_TH],   // pointer to thread descriptor
-			(pthread_attr_t*)&(rt_sched_attr[LANE_FOLLOW_TH]),     // use default attributes
-			lane_follower, // thread function entry point
-			(void *)&(threadParams[LANE_FOLLOW_TH]) // parameters to pass in
-		      );
-	usleep(usec);
+
+/**
+ * @brief This function creates threads for the required services.
+ * @param void
+ * @return void
+ */
+void thread_create(void)
+{
+	//Pedestrian Detection Thread
 	
-	pthread_create(&threads[SIGN_RECOG_TH],   // pointer to thread descriptor
-			(pthread_attr_t*)&(rt_sched_attr[SIGN_RECOG_TH]),     // use default attributes
-			sign_recog, // thread function entry point
-			(void *)&(threadParams[SIGN_RECOG_TH]) // parameters to pass in
+	pthread_create(&threads[PED_DETECT_TH],   							// pointer to thread descriptor
+			(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     		// use default attributes
+			pedestrian_detect, 											// thread function entry point
+			(void *)&(threadParams[PED_DETECT_TH]) 						// parameters to pass in
 		      );
-	usleep(usec);
 
-	pthread_create(&threads[VEH_DETECT_TH],   // pointer to thread descriptor
-			(pthread_attr_t*)&(rt_sched_attr[VEH_DETECT_TH]),     // use default attributes
-			vehicle_detect, // thread function entry point
-			(void *)&(threadParams[VEH_DETECT_TH]) // parameters to pass in
+
+	//Lane Detection Thread
+	pthread_create(&threads[LANE_FOLLOW_TH],   							// pointer to thread descriptor
+			(pthread_attr_t*)&(rt_sched_attr[LANE_FOLLOW_TH]),     		// use default attributes
+			lane_follower, 												// thread function entry point
+			(void *)&(threadParams[LANE_FOLLOW_TH]) 					// parameters to pass in
 		      );
-	usleep(usec);
 
-	while(1)
+
+	//Sign Detection Thread
+	pthread_create(&threads[SIGN_RECOG_TH],   							// pointer to thread descriptor
+			(pthread_attr_t*)&(rt_sched_attr[SIGN_RECOG_TH]),     		// use default attributes
+			sign_recog, 												// thread function entry point
+			(void *)&(threadParams[SIGN_RECOG_TH]) 						// parameters to pass in
+		      );
+
+	//Vehicle Detection Thread
+	pthread_create(&threads[VEH_DETECT_TH],   							// pointer to thread descriptor
+			(pthread_attr_t*)&(rt_sched_attr[VEH_DETECT_TH]),     		// use default attributes
+			vehicle_detect, 											// thread function entry point
+			(void *)&(threadParams[VEH_DETECT_TH]) 						// parameters to pass in
+		      );
+
+}
+
+
+/**
+ * @brief This function prints individual thread CPU information.
+ * @param threadParams The parameter passed while creating pthread.
+ * @return void
+ */
+void threadcpu_info(threadParams_t* threadParams)
+{
+	cpu_set_t cpuset;
+	CPU_ZERO(&cpuset);
+	pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+	cout << "Thread " << threadParams->threadIdx << " initialized" << endl;
+	cout << "Thread idx=" << threadParams->threadIdx << " running on core " << sched_getcpu() << ", affinity contained:" << endl;
+	for(int i=0; i<get_nprocs_conf(); i++)
 	{
-		capture >> g_frame;
-
-		sem_post(&main_sem);
-		detector = g_frame.clone();
-		resize(detector, detector, Size(COLS, ROWS));
-		//semaphores for threads
-/*
-		sem_wait(&th1_sem);
-		g_frame_cnt++;
-
-		for(int i=0; i<img_char.found_loc.size(); i++)
+		if(CPU_ISSET(i, &cpuset))
 		{
-			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
+			cout << " CPU-" << i << endl;
 		}
-*/		
-		sem_wait(&th2_sem);
-		
-		c = cvWaitKey(33);
-		if((c == 27) || (exit_cond))
-		{
-			exit_cond = 1;
-			clock_gettime(CLOCK_REALTIME, &g_stop_time);
-			delta_t(&g_stop_time, &g_start_time, &g_diff_time);		//Obtain time difference
-			printf("\nNumber of frames: %d\n", g_frame_cnt);
-			printf("Duration: %ld seconds\n", g_diff_time.tv_sec);
-			printf("Average FPS: %ld\n", (g_frame_cnt/g_diff_time.tv_sec));
-			break;
-		}
-		imshow("Video", g_frame);
-		imshow("Detector", detector);
 	}
 	
-	for(int i=0;i<NUM_THREADS;i++)
-		pthread_join(threads[i], NULL);
-	printf("\nExiting program\n");
+}
 
-	sem_destroy(&th1_sem);
-	sem_destroy(&main_sem);
-	sem_destroy(&th2_sem);
-	return 0;
+
+/**
+ * @brief This function prints the average FPS of the specified thread.
+ * @param start The start time of the particular thread.
+ * @param fps_thread The thread whose fps needs to be calculated. Substitute Macros defined in main.h
+ * @param frame_cnt The number of frames processed.
+ * @return void
+ */
+void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
+{
+	struct timespec stop_time, diff_time;
+	
+	switch(fps_thread)
+	{
+		case FPS_SYSTEM:
+		{
+			exit_cond = 1;
+			clock_gettime(CLOCK_REALTIME, &stop_time);
+			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
+			cout << endl << "OVERALL FPS:" << endl;
+			cout << "Number of frames: "<< frame_cnt << endl;
+			cout << "Duration: "<< diff_time.tv_sec << endl;
+			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			sem_post(&sem_main);
+			sem_post(&sem_main);
+			sem_post(&sem_main);
+			sem_post(&sem_main);
+			break;
+		}
+
+		case FPS_PEDESTRIAN:
+		{
+			clock_gettime(CLOCK_REALTIME, &stop_time);
+			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
+			cout << endl << "PEDESTRIAN FPS:" << endl;
+			cout << "Number of frames: "<< frame_cnt << endl;
+			cout << "Duration: "<< diff_time.tv_sec << endl;
+			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			break;
+		}
+		
+		case FPS_LANE:
+		{
+			clock_gettime(CLOCK_REALTIME, &stop_time);
+			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
+			cout << endl << "LANE FPS:" << endl;
+			cout << "Number of frames: "<< frame_cnt << endl;
+			cout << "Duration: "<< diff_time.tv_sec << endl;
+			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			break;
+		}
+		
+		case FPS_VEHICLE:
+		{
+			clock_gettime(CLOCK_REALTIME, &stop_time);
+			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
+			cout << endl << "VEHICLE FPS:" << endl;
+			cout << "Number of frames: "<< frame_cnt << endl;
+			cout << "Duration: "<< diff_time.tv_sec << endl;
+			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			break;
+		}
+		
+		case FPS_SIGN:
+		{
+			clock_gettime(CLOCK_REALTIME, &stop_time);
+			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
+			cout << endl << "SIGN FPS:" << endl;
+			cout << "Number of frames: "<< frame_cnt << endl;
+			cout << "Duration: "<< diff_time.tv_sec << endl;
+			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			break;
+		}
+	}
+	
+}
+
+
+/**
+ * @brief This function destroys the created semaphores.
+ * @param void
+ * @return void
+ */
+void sem_destroy_all(void)
+{
+	sem_destroy(&sem_main);
+	sem_destroy(&sem_pedestrian);
+	sem_destroy(&sem_lane);
 }

@@ -17,16 +17,26 @@
 using namespace cv;
 using namespace std;
 
-#define COLS	(320)
-#define ROWS	(240)
-#define NSEC_PER_SEC	(1000000000)
+#define COLS								(320)
+#define ROWS								(240)
+#define NSEC_PER_SEC						(1000000000)
 
-#define PED_DETECT_TH	(0)
-#define LANE_FOLLOW_TH	(1)
-#define SIGN_RECOG_TH	(2)
-#define VEH_DETECT_TH	(3)
+//Waitkey Keys
+#define ESC									(27)
 
-#define NUM_THREADS	(4)
+#define PED_DETECT_TH						(0)
+#define LANE_FOLLOW_TH						(1)
+#define SIGN_RECOG_TH						(2)
+#define VEH_DETECT_TH						(3)
+#define NUM_THREADS							(4)
+
+//FPS calculation Macros
+#define FPS_PEDESTRIAN						(1)
+#define FPS_LANE							(2)
+#define FPS_VEHICLE							(3)
+#define FPS_SIGN							(4)
+#define FPS_SYSTEM							(5)
+
 
 #define handle_error(msg) \
 	{ \
@@ -34,15 +44,11 @@ using namespace std;
 		exit(EXIT_FAILURE); \
 	} \
 
-bool exit_cond, done;
-char c, output_frame[40];
-int iterations, cpucore, g_frame_cnt, numberOfProcessors;
-
-struct timespec g_start_time, g_stop_time, g_diff_time;
 typedef struct
 {
     int threadIdx;
 } threadParams_t;
+
 
 struct img_cooordinates
 {
@@ -53,10 +59,19 @@ pthread_t threads[NUM_THREADS];
 threadParams_t threadParams[NUM_THREADS];
 pthread_attr_t rt_sched_attr[NUM_THREADS];
 
+bool exit_cond;
+char c, output_frame[40];
 Mat g_frame;
+sem_t sem_main, sem_pedestrian, sem_lane, sem_vehicle, sem_sign;
 
-sem_t th1_sem, main_sem, th2_sem;
 
+//Function Declarations
+void sem_create(void);
+void sem_destroy_all(void);
+void thread_create(void);
+void threadcpu_info(threadParams_t* threadParams);
+void thread_core_set(void);
+void fps_calc(struct timespec start, int frame_cnt, uint8_t fps_thread);
 //int delta_t(struct timespec *, struct timespec *, struct timespec *);
 
 //void* pedestrian_detect(void*);
