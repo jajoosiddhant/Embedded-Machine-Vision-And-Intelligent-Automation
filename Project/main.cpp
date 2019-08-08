@@ -141,7 +141,7 @@ void* pedestrian_detect(void* threadp)
 
 		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
 
-		cout << "Hello Pedestrians" << endl;
+		//cout << "Hello Pedestrians" << endl;
 		frame_cnt++;
 		sem_post(&sem_pedestrian);
 //		for(int i=0; i<found_loc.size(); i++)
@@ -184,7 +184,7 @@ void* lane_follower(void* threadp)
 	{
 		sem_wait(&sem_main);
 
-		cout << "Hello lane detect" << endl;
+	//	cout << "Hello lane detect" << endl;
 
 		frame_cnt++;
 
@@ -480,6 +480,7 @@ void threadcpu_info(threadParams_t* threadParams)
 	pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 	cout << "Thread " << threadParams->threadIdx << " initialized" << endl;
 	cout << "Thread idx=" << threadParams->threadIdx << " running on core " << sched_getcpu() << ", affinity contained:" << endl;
+	cout << "With PID = " << syscall(SYS_gettid) << endl;
 	for(int i=0; i<get_nprocs_conf(); i++)
 	{
 		if(CPU_ISSET(i, &cpuset))

@@ -8,6 +8,7 @@
 #include <time.h>
 #include <signal.h>
 #include <semaphore.h>
+#include <sys/syscall.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
