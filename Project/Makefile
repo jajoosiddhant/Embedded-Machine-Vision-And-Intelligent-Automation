@@ -4,7 +4,7 @@ CC=g++
 
 CDEFS=
 LIBS= -lrt
-CPPLIBS= -L/usr/lib -lopencv_core -lopencv_flann -lopencv_video -lpthread
+CPPLIBS= -L/usr/lib -lopencv_core -lopencv_flann -lopencv_video -lpthread 
 
 HFILES=
 CFILES= 
