@@ -54,6 +54,8 @@ typedef struct
 struct img_cooordinates
 {
 	vector<Rect> found_loc;
+	Vec4i g_left;
+	Vec4i g_right;
 } img_char;
 
 pthread_t threads[NUM_THREADS];
@@ -73,3 +75,27 @@ void thread_create(void);
 void threadcpu_info(threadParams_t* threadParams);
 void thread_core_set(void);
 void fps_calc(struct timespec start, int frame_cnt, uint8_t fps_thread);
+
+
+
+//Functions related to lane detect. Copy these in master.
+Mat preprocess(Mat src);
+Mat equalize(Mat src_half);
+Mat create_mask(Mat src_half);
+Mat detect_lanes(Mat contrast, Mat mask, Mat roi_mask);
+Mat roi_mask(Mat src_half);
+void process_lanes(vector<Vec4i> lane, int side);
+
+Mat abcd;
+//Sides
+#define LEFT						(1)
+#define RIGHT						(2)
+
+//Canny Threshold Values
+#define CANNY_THRESHOLD_1			(40)
+#define CANNY_THRESHOLD_2			(120)
+
+//Hough Lines Threshold Values
+#define	HOUGH_THRESHOLD				(40)
+#define	HOUGH_MIN_LINE_LENGTH		(10)
+#define	HOUGH_MAX_LINE_GAP			(80)
