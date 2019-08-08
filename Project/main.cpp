@@ -107,6 +107,14 @@ void* lane_follower(void* threadp)
 	threadParams_t* threadParams = (threadParams_t*)threadp;
 	struct timespec start_time;
 	int frame_cnt = 0;
+	Mat src;
+	Mat src_half, contrast, mask;		
+	Mat detect_lanes, blur, edge;
+	Mat canny_roi;
+	//Mat src_res;
+	
+	double slope;
+	int x1, x2, y1, y2;
 		
 	//Printing thread information 
 	threadcpu_info(threadParams);
@@ -117,15 +125,71 @@ void* lane_follower(void* threadp)
 	while(1)
 	{
 		sem_wait(&sem_main);
+		src = g_frame.clone();
+	
+		//Preprocess frames
+		src_half = preprocess(src);		
+		
+		//Return a contrast image
+		contrast = equalize(src_half);
+		
+		//Returns a mask to detect lanes
+		mask = create_mask(src_half);
+		  
+		
+		//Creating Polygon ROI
+		Point roi_pt[1][4];
+		int num = 4;
 
-	//	cout << "Hello lane detect" << endl;
+		Mat roi_mask = Mat::zeros(Size(src_half.cols, src_half.rows), CV_8U);
+		//Points for ROI mask
+		roi_pt[0][0] = Point(2*src_half.cols/5, src_half.rows/5);					//Apex
+		roi_pt[0][1] = Point(3*src_half.cols/5, src_half.rows/5);
+		roi_pt[0][3] = Point(src_half.cols/5, src_half.rows);						//Bottom left vertice
+		roi_pt[0][2] = Point(4*src_half.cols/5 , src_half.rows);			//Bottomk right vertice
+		const Point* pts_list[1] = {roi_pt[0]};
+		fillPoly(roi_mask, pts_list, &num, 1, 255, 8);						//Change to fillConvexPolly for faster results
+	
+
+		//Detect lanes
+		vector<Vec4i> lines;
+		vector<Vec4i> left;
+		vector<Vec4i> right;
+		
+		bitwise_and(contrast, mask, detect_lanes);
+//		imshow("lanes Detected", detect_lanes);
+		
+		//Applying gaussian filter to reduce noise followed by canny transform for edge detection.
+		GaussianBlur( detect_lanes, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
+		Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);	//Can change to false
+
+		bitwise_and(edge, roi_mask, canny_roi);
+		imshow("Canny Mask", canny_roi);
+		
+		//Detect and Draw Lines
+		HoughLinesP(canny_roi, lines, 1, CV_PI/180, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP );
+		for( size_t i = 0; i < lines.size(); i++ )
+		{
+			Vec4i l = lines[i];
+			
+			slope = (double)((l[3] - l[1])/(double)(l[2] - l[0]));
+			if (slope > 0.5)
+			{
+				right.push_back(lines[i]);
+			}				
+			else if (slope < (-0.5))
+			{
+				left.push_back(lines[i]);
+			}
+		}
+				
+		process_lanes(left, LEFT);
+		process_lanes(right, RIGHT);
+
 
 		frame_cnt++;
-
 		sem_post(&sem_lane);
 
-		usleep(25000);
-		
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -245,14 +309,6 @@ int main(int argc, char** argv)
 		//sem_post(&sem_main);
 		//sem_post(&sem_main);
 		
-		detector = g_frame.clone();
-		resize(detector, detector, Size(COLS, ROWS));
-
-
-		for(int i=0; i<img_char.found_loc.size(); i++)
-		{
-			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
-		}
 		
 		//Counting number of frames
 		frame_cnt++;
@@ -261,6 +317,21 @@ int main(int argc, char** argv)
 		sem_wait(&sem_lane);
 		//sem_wait(&sem_vehicle);
 		//sem_wait(&sem_sign);
+
+		detector = g_frame.clone();
+		resize(detector, detector, Size(COLS, ROWS));
+		for(int i=0; i<img_char.found_loc.size(); i++)
+		{
+			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
+		}
+
+
+//		pyrDown(g_frame, g_frame_res);
+//		line( g_frame_res, Point(img_char.g_left[0], img_char.g_left[1] + g_frame_res.rows/2), Point(img_char.g_left[2], img_char.g_left[3] + g_frame_res.rows/2), Scalar(0,0,255), 3, CV_AA);
+//		line( g_frame_res, Point(img_char.g_right[0], img_char.g_right[1] + g_frame_res.rows/2), Point(img_char.g_right[2], img_char.g_right[3] + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);
+		//pyrDown(g_frame_res, g_frame);
+
+
 		
 		c = waitKey(5);
 		if((c == 27) || (exit_cond))
@@ -504,4 +575,196 @@ void sem_destroy_all(void)
 	sem_destroy(&sem_main);
 	sem_destroy(&sem_pedestrian);
 	sem_destroy(&sem_lane);
+}
+
+
+
+//Functions related to lane detection.
+
+/**
+ * @brief This function reduces the resolution by 2 and eliminates the top part of the image.
+ * @param src The image that needs to be processed.
+ * @return The processed image.
+ */
+Mat preprocess(Mat src)
+{
+	Mat src_res, src_half;
+	
+	//Reduce the resolution by 2
+	pyrDown(src, src_res);
+	
+	//Crop the image to get bottom half because sky is not required. Thus eliminating half the pixels.
+	src_half = src_res( Rect( 0, src_res.rows/2, src_res.cols, src_res.rows/2) );
+	
+	//imshow("Original", src_half);
+	
+	return src_half;
+}
+
+
+/**
+ * @brief This function converts the image into grayscale and improves contrast.
+ * @param src_half The image that needs to be processed.
+ * @return The processed image.
+ */
+Mat equalize(Mat src_half)
+{
+	Mat gray, contrast;
+	
+	//Convert to grayscale
+	cvtColor(src_half, gray, COLOR_BGR2GRAY);
+	
+	//Increase Contrast to detect white lines and remove any disturbance due to road color.
+	equalizeHist(gray, contrast);
+	
+	//imshow("Contrast Image", contrast);
+	
+	return contrast;
+}
+
+
+/**
+ * @brief This function creates mask to detect lanes.
+ * @param src_half The image that needs to be processed.
+ * @return The processed image.
+ */
+Mat create_mask(Mat src_half)
+{
+	Mat hls, white;
+	Mat hsv, yellow;
+	Mat mask;
+	
+	//Convert Original Image to HLS
+	cvtColor(src_half, hls, COLOR_BGR2HLS);								//Shows white as yellow.
+	//imshow("HLS", hls);
+	
+	//Lower value of Saturation makes changes. i.e middle one. Reducing the lower saturation value includes yellow lanes and background as well	
+	//If want to incorpotate yellow lines change lower threshold of saturation to 70 or keep 100.
+	inRange(hls, Scalar(20,100,0), Scalar(40,255,50), white);				//brightness can be 0 to 50 also.	
+	//imshow("HLS white", white);	
+
+	//Convert Original Image to HSV
+	cvtColor(src_half, hsv, COLOR_BGR2HSV);								//Shows yellow as yellow.
+	//imshow("HSV", hsv);
+	
+	//Brightness makes the difference (eliminates background) - Do not change brightness value. i.e the last value (80)
+	//Saturation value makes changes i.e middle one. If want to make the yellow lines more bold increase upper saturation value. above 100 introduces background.
+	inRange(hsv, Scalar(20,80,80), Scalar(40,255,255), yellow); 					
+	//imshow("HSV YELLOW", yellow);
+	
+	
+	bitwise_or(white, yellow, mask);
+	//imshow("Mask", mask);
+
+	return mask;
+}
+
+//Not required. Can delete.
+Mat detect_lanes(Mat contrast, Mat mask, Mat roi_mask)
+{
+	Mat detect_lanes, blur, edge;
+	Mat canny_roi;
+	vector<Vec4i> lines;
+	vector<Vec4i> left;
+	vector<Vec4i> right;
+	
+	bitwise_and(contrast, mask, detect_lanes);
+	imshow("lanes Detected", detect_lanes);
+	
+	//Applying gaussian filter to reduce noise followed by canny transform for edge detection.
+	GaussianBlur( detect_lanes, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
+	Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);	//Can change to false
+
+	bitwise_and(edge, roi_mask, canny_roi);
+	imshow("Canny Mask", canny_roi);
+	
+	//Detect and Draw Lines
+	HoughLinesP(canny_roi, lines, 1, CV_PI/180, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP );
+	for( size_t i = 0; i < lines.size(); i++ )
+	{
+		Vec4i l = lines[i];
+		
+		double slope = (double)((l[3] - l[1])/(double)(l[2] - l[0]));
+		if (slope > 0.5 || slope < (-0.5))
+		{
+			//cout << "y = " << l[0] << "and threshold" << src_res.cols/2 << endl;
+			if(l[0] < (g_frame.cols/2))
+			{
+				left.push_back(lines[i]);
+			}
+			else
+			{
+				right.push_back(lines[i]);
+			}
+			
+			line( g_frame, Point(l[0], l[1] + g_frame.rows/2), Point(l[2], l[3] + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);	
+		}
+		
+	}
+}
+
+
+//Not required. Can delete.
+Mat roi_mask(Mat src_half)
+{
+		cout << "finished creating Mask ------------" << endl;
+		fflush(stdout);
+	//Creating Polygon ROI
+	Point roi_pt[1][4];
+	int num = 4;
+	cout << "finished creating Mask ------------" << endl;
+	Mat roi_mask = Mat::zeros(Size(src_half.cols, src_half.rows), CV_8U);
+	//Points for ROI mask
+	roi_pt[0][0] = Point(2*src_half.cols/5, src_half.rows/5);					//Apex
+	roi_pt[0][1] = Point(3*src_half.cols/5, src_half.rows/5);
+	roi_pt[0][3] = Point(src_half.cols/5, src_half.rows);						//Bottom left vertice
+	roi_pt[0][2] = Point(4*src_half.cols/5 , src_half.rows);			//Bottomk right vertice
+	const Point* pts_list[1] = {roi_pt[0]};
+	fillPoly(roi_mask, pts_list, &num, 1, 255, 8);						//Change to fillConvexPolly for faster results
+	
+	imshow("ROI MASK", roi_mask);
+	cout << "finished creating Mask" << endl;
+	return roi_mask;
+}
+
+
+void process_lanes(vector<Vec4i> lane, int side)
+{
+	//Reset Coordinates
+	int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
+			
+	for( size_t i = 0; i < lane.size(); i++ )
+	{
+		Vec4i c = lane[i];
+		
+		x1 += c[0];
+		y1 += c[1];
+		x2 += c[2];
+		y2 += c[3]; 
+	}
+	
+	x1 = x1/lane.size();
+	y1 = y1/lane.size();
+	x2 = x2/lane.size();
+	y2 = y2/lane.size();
+			
+	if(side == LEFT)
+	{
+		img_char.g_left[0] = x1;
+		img_char.g_left[1] = y1;
+		img_char.g_left[2] = x2;
+		img_char.g_left[3] = y1;
+		
+//		line( abcd, Point(x1, y1 + abcd.rows/2), Point(x2, y2 + abcd.rows/2), Scalar(0,0,255), 3, CV_AA);
+//		imshow("ABCD", abcd);
+	}
+	else if(side == RIGHT)
+	{
+		img_char.g_right[0] = x1;
+		img_char.g_right[1] = y1;
+		img_char.g_right[2] = x2;
+		img_char.g_right[3] = y1;
+	}		
+//	line( g_frame, Point(x1, y1 + g_frame.cols/2), Point(x2, y2 + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);		
+		
 }
