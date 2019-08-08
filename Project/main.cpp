@@ -262,7 +262,7 @@ int main(int argc, char** argv)
 		//sem_wait(&sem_vehicle);
 		//sem_wait(&sem_sign);
 		
-		c = waitKey(33);
+		c = waitKey(5);
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -318,13 +318,14 @@ void sem_create(void)
  */
 void thread_core_set(void)
 {
+	int config_Processors = get_nprocs_conf();
 	cpu_set_t allcpuset;
 	cpu_set_t threadcpu;
 	
-	cout << "This system has " << get_nprocs_conf() << " processors configured and " << get_nprocs() << " processors available" << endl << endl;
+	cout << "This system has " << config_Processors << " processors configured and " << get_nprocs() << " processors available" << endl << endl;
 	
 	CPU_ZERO(&allcpuset);
-	for(int i=0; i < get_nprocs_conf(); i++)
+	for(int i=0; i < config_Processors; i++)
 	{
 		CPU_SET(i, &allcpuset);
 	}
@@ -335,10 +336,10 @@ void thread_core_set(void)
 		
 		//Setting individual cores to individual services
 		CPU_ZERO(&threadcpu);
-		coreid=i%get_nprocs_conf();
+		coreid=i%config_Processors;
 		cout << "Setting thread " << i << " to core " << coreid << endl;
 		CPU_SET(coreid, &threadcpu);
-		for(int idx=0; idx<get_nprocs_conf(); idx++)
+		for(int idx=0; idx<config_Processors; idx++)
 		{
 			if(CPU_ISSET(idx, &threadcpu))  
 			{
