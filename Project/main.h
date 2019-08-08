@@ -18,25 +18,25 @@
 using namespace cv;
 using namespace std;
 
-#define COLS								(320)
-#define ROWS								(240)
+#define COLS							(320)
+#define ROWS							(240)
 #define NSEC_PER_SEC						(1000000000)
 
 //Waitkey Keys
-#define ESC									(27)
+#define ESC							(27)
 
 #define PED_DETECT_TH						(0)
 #define LANE_FOLLOW_TH						(1)
 #define SIGN_RECOG_TH						(2)
 #define VEH_DETECT_TH						(3)
-#define NUM_THREADS							(4)
+#define NUM_THREADS						(4)
 
 //FPS calculation Macros
 #define FPS_PEDESTRIAN						(1)
-#define FPS_LANE							(2)
-#define FPS_VEHICLE							(3)
-#define FPS_SIGN							(4)
-#define FPS_SYSTEM							(5)
+#define FPS_LANE						(2)
+#define FPS_VEHICLE						(3)
+#define FPS_SIGN						(4)
+#define FPS_SYSTEM						(5)
 
 
 #define handle_error(msg) \
@@ -73,10 +73,3 @@ void thread_create(void);
 void threadcpu_info(threadParams_t* threadParams);
 void thread_core_set(void);
 void fps_calc(struct timespec start, int frame_cnt, uint8_t fps_thread);
-//int delta_t(struct timespec *, struct timespec *, struct timespec *);
-
-//void* pedestrian_detect(void*);
-//void* lane_follower(void*);
-//void* sign_recog(void*);
-//void* vehicle_detect(void*);
-

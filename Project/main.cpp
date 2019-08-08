@@ -1,58 +1,5 @@
 #include "main.h"
-/*
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <iostream>
-#include <pthread.h>
-#include <sys/time.h>
-#include <sys/sysinfo.h>
-#include <time.h>
-#include <signal.h>
-#include <semaphore.h>
 
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-#include "opencv2/objdetect/objdetect.hpp"
-
-using namespace cv;
-using namespace std;
-
-#define COLS	(320)
-#define ROWS	(240)
-#define NSEC_PER_SEC	(1000000000)
-
-#define PED_DETECT_TH	(0)
-#define LANE_FOLLOW_TH	(1)
-#define SIGN_RECOG_TH	(2)
-#define VEH_DETECT_TH	(3)
-
-#define NUM_THREADS	(4)
-
-bool exit_cond, done;
-char output_frame[40];
-int iterations, cpucore, g_frame_cnt, numberOfProcessors;
-
-struct timespec g_start_time, g_stop_time, g_diff_time;
-typedef struct
-{
-    int threadIdx;
-} threadParams_t;
-
-pthread_t threads[NUM_THREADS];
-threadParams_t threadParams[NUM_THREADS];
-pthread_attr_t rt_sched_attr[NUM_THREADS];
-
-Mat g_frame;
-
-//int delta_t(struct timespec *, struct timespec *, struct timespec *);
-
-//void* pedestrian_detect(void*);
-//void* lane_follower(void*);
-//void* sign_recog(void*);
-//void* vehicle_detect(void*);
-*/
 
 void signal_handler(int signo, siginfo_t *info, void *extra)
 {
@@ -119,7 +66,6 @@ void* pedestrian_detect(void* threadp)
 	int frame_cnt = 0;
 
 	Mat mat, resz_mat;
-//	vector<Rect> found_loc;	
 	HOGDescriptor hog;
 	hog.setSVMDetector(HOGDescriptor::getDefaultPeopleDetector());
 			
@@ -129,31 +75,19 @@ void* pedestrian_detect(void* threadp)
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
 	
-
 	while(1)
 	{
-		sem_wait(&sem_main);
-		//semaphore from main
+		sem_wait(&sem_main);	//semaphore from main
 		mat = g_frame.clone();
 		cvtColor(mat, mat, CV_BGR2GRAY);
-		resize(mat, resz_mat, Size(COLS, ROWS));
-		//	resize(mat, resz_mat, Size(800, 533));
+		resize(mat, resz_mat, Size(COLS, ROWS));	//resize to 320x240
 
 		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
-
-		//cout << "Hello Pedestrians" << endl;
-		frame_cnt++;
 		sem_post(&sem_pedestrian);
-//		for(int i=0; i<found_loc.size(); i++)
-//		{
-//			rectangle(resz_mat, found_loc[i], (0, 0, 255), 4);
-//		}
 
-//		imshow("Detector", resz_mat);
-//		imshow("Video", mat);
+//		cout << "Hello Pedestrians" << endl;
+		frame_cnt++;
 
-
-//		c = cvWaitKey(10);
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -161,7 +95,7 @@ void* pedestrian_detect(void* threadp)
 	}
 
 	//Calculating FPS for pedestrian detection
-	fps_calc(start_time, frame_cnt, FPS_PEDESTRIAN);
+//	fps_calc(start_time, frame_cnt, FPS_PEDESTRIAN);
 
 	pthread_exit(NULL);
 }
@@ -190,7 +124,7 @@ void* lane_follower(void* threadp)
 
 		sem_post(&sem_lane);
 
-		usleep(50000);
+		usleep(25000);
 		
 		if((c == 27) || (exit_cond))
 		{
@@ -200,7 +134,7 @@ void* lane_follower(void* threadp)
 	}
 	
 	//Calculating FPS for lane detection
-	fps_calc(start_time, frame_cnt, FPS_LANE);
+//	fps_calc(start_time, frame_cnt, FPS_LANE);
 	
 	pthread_exit(NULL);
 
@@ -231,7 +165,7 @@ void* sign_recog(void* threadp)
 	}
 	
 	//Calculating FPS for sign detection
-	fps_calc(start_time, frame_cnt, FPS_SIGN);
+//	fps_calc(start_time, frame_cnt, FPS_SIGN);
 
 	pthread_exit(NULL);
 
@@ -261,7 +195,7 @@ void* vehicle_detect(void* threadp)
 	}
 	
 	//Calculating FPS for sign detection
-	fps_calc(start_time, frame_cnt, FPS_VEHICLE);
+//	fps_calc(start_time, frame_cnt, FPS_VEHICLE);
 
 	pthread_exit(NULL);
 
@@ -272,6 +206,7 @@ int main(int argc, char** argv)
 	int frame_cnt = 0;
 	struct timespec start_time;
 	exit_cond = false;
+	Mat detector;
 	
 	if(argc < 2)
 	{
@@ -286,9 +221,6 @@ int main(int argc, char** argv)
 //	Size size = Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH)/2,
 //			 (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)/2);		//Size of capture object, height and width
 //	output_v.open("output.avi", CV_FOURCC('M','P','4','V'), cap.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
-
-	
-	Mat detector;
 
 	set_signal_handler();
 
@@ -307,6 +239,7 @@ int main(int argc, char** argv)
 	{
 		capture >> g_frame;
 
+		//Post semaphore 4 times, once for each of the 4 threads
 		sem_post(&sem_main);
 		sem_post(&sem_main);
 		//sem_post(&sem_main);
@@ -314,7 +247,6 @@ int main(int argc, char** argv)
 		
 		detector = g_frame.clone();
 		resize(detector, detector, Size(COLS, ROWS));
-
 
 
 		for(int i=0; i<img_char.found_loc.size(); i++)
@@ -329,7 +261,6 @@ int main(int argc, char** argv)
 		sem_wait(&sem_lane);
 		//sem_wait(&sem_vehicle);
 		//sem_wait(&sem_sign);
-		
 		
 		c = waitKey(33);
 		if((c == 27) || (exit_cond))
@@ -351,7 +282,6 @@ int main(int argc, char** argv)
 	}
 	
 	cout << "Exiting program" << endl;
-
 
 	//Destroying all Semaphores
 	sem_destroy_all();
@@ -417,13 +347,11 @@ void thread_core_set(void)
 		}
 		cout << "Launching thread " << i << endl << endl;
 
-		//handle error condition here
 		rc=pthread_attr_init(&rt_sched_attr[i]);
 		rc=pthread_attr_setaffinity_np(&rt_sched_attr[i], sizeof(cpu_set_t), &threadcpu);
 
 		threadParams[i].threadIdx=i;
 	}
-
 }
 
 
@@ -435,34 +363,31 @@ void thread_core_set(void)
 void thread_create(void)
 {
 	//Pedestrian Detection Thread
-	
-	pthread_create(&threads[PED_DETECT_TH],   							// pointer to thread descriptor
+	pthread_create(&threads[PED_DETECT_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     		// use default attributes
-			pedestrian_detect, 											// thread function entry point
-			(void *)&(threadParams[PED_DETECT_TH]) 						// parameters to pass in
+			pedestrian_detect, 						// thread function entry point
+			(void *)&(threadParams[PED_DETECT_TH]) 				// parameters to pass in
 		      );
-
 
 	//Lane Detection Thread
-	pthread_create(&threads[LANE_FOLLOW_TH],   							// pointer to thread descriptor
+	pthread_create(&threads[LANE_FOLLOW_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[LANE_FOLLOW_TH]),     		// use default attributes
-			lane_follower, 												// thread function entry point
-			(void *)&(threadParams[LANE_FOLLOW_TH]) 					// parameters to pass in
+			lane_follower, 							// thread function entry point
+			(void *)&(threadParams[LANE_FOLLOW_TH]) 			// parameters to pass in
 		      );
 
-
 	//Sign Detection Thread
-	pthread_create(&threads[SIGN_RECOG_TH],   							// pointer to thread descriptor
+	pthread_create(&threads[SIGN_RECOG_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[SIGN_RECOG_TH]),     		// use default attributes
-			sign_recog, 												// thread function entry point
-			(void *)&(threadParams[SIGN_RECOG_TH]) 						// parameters to pass in
+			sign_recog, 							// thread function entry point
+			(void *)&(threadParams[SIGN_RECOG_TH]) 				// parameters to pass in
 		      );
 
 	//Vehicle Detection Thread
-	pthread_create(&threads[VEH_DETECT_TH],   							// pointer to thread descriptor
+	pthread_create(&threads[VEH_DETECT_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[VEH_DETECT_TH]),     		// use default attributes
-			vehicle_detect, 											// thread function entry point
-			(void *)&(threadParams[VEH_DETECT_TH]) 						// parameters to pass in
+			vehicle_detect, 						// thread function entry point
+			(void *)&(threadParams[VEH_DETECT_TH]) 				// parameters to pass in
 		      );
 
 }
@@ -479,15 +404,15 @@ void threadcpu_info(threadParams_t* threadParams)
 	CPU_ZERO(&cpuset);
 	pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 	cout << "Thread " << threadParams->threadIdx << " initialized" << endl;
-	cout << "Thread idx=" << threadParams->threadIdx << " running on core " << sched_getcpu() << ", affinity contained:" << endl;
-	cout << "With PID = " << syscall(SYS_gettid) << endl;
+	cout << "Thread idx=" << threadParams->threadIdx << " running on core " << sched_getcpu() << ", affinity contained:";
 	for(int i=0; i<get_nprocs_conf(); i++)
 	{
 		if(CPU_ISSET(i, &cpuset))
 		{
-			cout << " CPU-" << i << endl;
+			cout << " CPU-" << i;
 		}
 	}
+	cout << " with PID = " << syscall(SYS_gettid) << endl;
 	
 }
 
@@ -565,7 +490,6 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			break;
 		}
 	}
-	
 }
 
 
