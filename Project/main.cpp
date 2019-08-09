@@ -5,12 +5,15 @@
 
 int main(int argc, char** argv)
 {
+	XInitThreads();
 	int frame_cnt = 0;
 	struct timespec start_time;
 	exit_cond = false;
 	Mat detector;
 	int rc;
 	pid_t mainpid;
+
+	Point ped_rect[2];
 
 	
 	if(argc < 2)
@@ -23,9 +26,10 @@ int main(int argc, char** argv)
 	//Declaring VideoCapture and VideoWriter objects to read and write videos
 	VideoCapture capture(argv[1]);
 	VideoWriter output_v;
-	Size size = Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH)/2,
-			 (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)/2);		//Size of capture object, height and width
-	output_v.open("output.avi", CV_FOURCC('M','P','4','V'), cap.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
+	Size size = Size(COLS*2, ROWS*2);
+//	Size size = Size((int) capture.get(CV_CAP_PROP_FRAME_WIDTH),
+//			 (int) capture.get(CV_CAP_PROP_FRAME_HEIGHT));		//Size of capture object, height and width
+	output_v.open("output.mp4", CV_FOURCC('M','P','4','V'), capture.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
 
 	//Initializing Semaphores and Signal Handler.
 	set_signal_handler();													
@@ -33,28 +37,28 @@ int main(int argc, char** argv)
 
 	//Fetching and printing Max and Min priority values for SCHED_FIFO.
 	mainpid=getpid();
-    rt_max_prio = sched_get_priority_max(SCHED_FIFO);
-    rt_min_prio = sched_get_priority_min(SCHED_FIFO);
+	rt_max_prio = sched_get_priority_max(SCHED_FIFO);
+	rt_min_prio = sched_get_priority_min(SCHED_FIFO);
 	cout << "MAX priority= " << rt_max_prio << endl;
-    cout << "MIN priority= " << rt_min_prio << endl;
-    
+	cout << "MIN priority= " << rt_min_prio << endl;
+
 	//Setting highest priority to main which will act as the scheduler.
 	rc = sched_getparam(mainpid, &main_param);
-    main_param.sched_priority = rt_max_prio - 10;
-    rc = sched_setscheduler(getpid(), SCHED_FIFO, &main_param);
-    if(rc < 0) 
-    {
+	main_param.sched_priority = rt_max_prio - 10;
+	rc = sched_setscheduler(getpid(), SCHED_FIFO, &main_param);
+	if(rc < 0) 
+	{
 		perror("Cannot Set priority of Main thread.\n");
 		exit(EXIT_FAILURE);
-    }
-    
-    //Printing the set scheduled policy, scope and priorities value.
-    print_scheduler();
+	}
+
+	//Printing the set scheduled policy, scope and priorities value.
+	print_scheduler();
 	print_scope();
 
-    //Setting thread attributes
-    set_thread_attr();
-    
+	//Setting thread attributes
+	set_thread_attr();
+
 	//Setting up core affinity for different services
 	//thread_core_set();
 
@@ -75,54 +79,55 @@ int main(int argc, char** argv)
 		frame_cnt++;
 		
 		// Pedestrian Service = RT_MAX-20 @200Hz
+		if((frame_cnt % 2) == 0)
+		{
+			sem_post(&sem_pedestrian);
+		}
+
+		// Lane Detection Service = RT_MAX-20 @200Hz
 		if((frame_cnt % 1) == 0)
-        {
-            sem_post(&sem_pedestrian);
-        }
-        
-        // Lane Detection Service = RT_MAX-20 @200Hz
-        if((frame_cnt % 1) == 0)
-        {
-            sem_post(&sem_lane);
-        }
- /*       
-        // Vehicle Service = RT_MAX-20 @200Hz
-        if((frame_cnt % 1) == 0)
-        {
-            sem_post(&sem_vehicle);
-        }
-        
-        // Sign Service = RT_MAX-20 @ 200 Hz
-        if((frame_cnt % 1) == 0)
-        {
-            sem_post(&sem_sign);
-        }
+		{
+			sem_post(&sem_lane);
+		}
+		/*       
+		// Vehicle Service = RT_MAX-20 @200Hz
+		if((frame_cnt % 1) == 0)
+		{
+			sem_post(&sem_vehicle);
+		}
+
+		// Sign Service = RT_MAX-20 @ 200 Hz
+		if((frame_cnt % 1) == 0)
+		{
+			sem_post(&sem_sign);
+		}
    */     
 
+		detector = g_frame.clone();
+		resize(detector, detector, Size(COLS*2, ROWS*2));
+//		pyrDown(detector, detector);
+		for(int i=0; i<img_char.found_loc.size(); i++)
+		{
+			ped_rect[0].x = (img_char.found_loc[i].x)*2;
+			ped_rect[0].y = (img_char.found_loc[i].y)*2;
+			ped_rect[1].x = (img_char.found_loc[i].x + img_char.found_loc[i].width)*2;
+			ped_rect[1].y = (img_char.found_loc[i].y + img_char.found_loc[i].height)*2;
+			rectangle(detector, ped_rect[0], ped_rect[1], (0, 0, 255), 4);
+		}
 
-//		detector = g_frame.clone();
-//		resize(detector, detector, Size(COLS, ROWS));
-//		for(int i=0; i<img_char.found_loc.size(); i++)
-//		{
-//			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
-//		}
+		line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), Scalar(0,0,255), 3, CV_AA);
+		line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), Scalar(0,0,255), 3, CV_AA);
 
+//		imshow("Video", g_frame);
+		imshow("Detector", detector);
+		output_v.write(detector);
 
-//		pyrDown(g_frame, g_frame_res);
-//		line( g_frame_res, Point(img_char.g_left[0], img_char.g_left[1] + g_frame_res.rows/2), Point(img_char.g_left[2], img_char.g_left[3] + g_frame_res.rows/2), Scalar(0,0,255), 3, CV_AA);
-//		line( g_frame_res, Point(img_char.g_right[0], img_char.g_right[1] + g_frame_res.rows/2), Point(img_char.g_right[2], img_char.g_right[3] + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);
-		//pyrDown(g_frame_res, g_frame);
-
-
-		
-		c = waitKey(5);
+		c = waitKey(33);
 		if((c == 27) || (exit_cond))
 		{
 			break;
 		}
 
-		imshow("Video", g_frame);
-		//imshow("Detector", detector);
 	}
 	
 	//Calculating Average FPS
@@ -440,7 +445,7 @@ void thread_create(void)
 
 	//Pedestrian Detection Thread
 	rt_param[0].sched_priority=rt_max_prio-20;
-    pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
+	pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
 	pthread_create(&threads[PED_DETECT_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     		// use default attributes
 			pedestrian_detect, 						// thread function entry point
@@ -450,7 +455,7 @@ void thread_create(void)
 
 	//Lane Detection Thread
 	rt_param[1].sched_priority=rt_max_prio-20;
-    pthread_attr_setschedparam(&rt_sched_attr[1], &rt_param[1]);
+	pthread_attr_setschedparam(&rt_sched_attr[1], &rt_param[1]);
 	pthread_create(&threads[LANE_FOLLOW_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[LANE_FOLLOW_TH]),     		// use default attributes
 			lane_follower, 							// thread function entry point
@@ -459,7 +464,7 @@ void thread_create(void)
 /*
 	//Sign Detection Thread
 	rt_param[2].sched_priority=rt_max_prio-20;
-    pthread_attr_setschedparam(&rt_sched_attr[2], &rt_param[2]);
+	pthread_attr_setschedparam(&rt_sched_attr[2], &rt_param[2]);
 	pthread_create(&threads[SIGN_RECOG_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[SIGN_RECOG_TH]),     		// use default attributes
 			sign_recog, 							// thread function entry point
@@ -468,7 +473,7 @@ void thread_create(void)
 
 	//Vehicle Detection Thread
 	rt_param[3].sched_priority=rt_max_prio-20;
-    pthread_attr_setschedparam(&rt_sched_attr[3], &rt_param[3]);
+	pthread_attr_setschedparam(&rt_sched_attr[3], &rt_param[3]);
 	pthread_create(&threads[VEH_DETECT_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[VEH_DETECT_TH]),     		// use default attributes
 			vehicle_detect, 						// thread function entry point
@@ -509,19 +514,19 @@ void set_thread_attr(void)
 	int i, rc;
 	
 	for(i=0; i < NUM_THREADS; i++)
-    {
+	{
 
-      rc=pthread_attr_init(&rt_sched_attr[i]);
-      rc=pthread_attr_setinheritsched(&rt_sched_attr[i], PTHREAD_EXPLICIT_SCHED);
-      rc=pthread_attr_setschedpolicy(&rt_sched_attr[i], SCHED_FIFO);
-      //rc=pthread_attr_setaffinity_np(&rt_sched_attr[i], sizeof(cpu_set_t), &threadcpu);
-	  pthread_attr_setscope(&rt_sched_attr[i], PTHREAD_SCOPE_SYSTEM);
-      
-	  rt_param[i].sched_priority=rt_max_prio-20;
-      pthread_attr_setschedparam(&rt_sched_attr[i], &rt_param[i]);
+		rc=pthread_attr_init(&rt_sched_attr[i]);
+		rc=pthread_attr_setinheritsched(&rt_sched_attr[i], PTHREAD_EXPLICIT_SCHED);
+		rc=pthread_attr_setschedpolicy(&rt_sched_attr[i], SCHED_FIFO);
+		//rc=pthread_attr_setaffinity_np(&rt_sched_attr[i], sizeof(cpu_set_t), &threadcpu);
+		pthread_attr_setscope(&rt_sched_attr[i], PTHREAD_SCOPE_SYSTEM);
 
-      threadParams[i].threadIdx=i;
-    }
+		rt_param[i].sched_priority=rt_max_prio-20;
+		pthread_attr_setschedparam(&rt_sched_attr[i], &rt_param[i]);
+
+		threadParams[i].threadIdx=i;
+	}
 }
 
 
@@ -767,6 +772,8 @@ Mat roi_mask(Mat src_half)
 
 void process_lanes(vector<Vec4i> lane, int side)
 {
+	Mat abcd;
+	pyrDown(g_frame, abcd);
 	//Reset Coordinates
 	int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
 			
@@ -790,37 +797,33 @@ void process_lanes(vector<Vec4i> lane, int side)
 		img_char.g_left[0] = x1;
 		img_char.g_left[1] = y1;
 		img_char.g_left[2] = x2;
-		img_char.g_left[3] = y1;
-		
-//		line( abcd, Point(x1, y1 + abcd.rows/2), Point(x2, y2 + abcd.rows/2), Scalar(0,0,255), 3, CV_AA);
-//		imshow("ABCD", abcd);
+		img_char.g_left[3] = y2;
 	}
 	else if(side == RIGHT)
 	{
 		img_char.g_right[0] = x1;
 		img_char.g_right[1] = y1;
 		img_char.g_right[2] = x2;
-		img_char.g_right[3] = y1;
+		img_char.g_right[3] = y2;
 	}		
-//	line( g_frame, Point(x1, y1 + g_frame.cols/2), Point(x2, y2 + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);		
 		
 }
 
 void print_scope(void)
 {
 	int scope;
-	
-    pthread_attr_getscope(&main_attr, &scope);
-    if(scope == PTHREAD_SCOPE_SYSTEM)
-    {
+
+	pthread_attr_getscope(&main_attr, &scope);
+	if(scope == PTHREAD_SCOPE_SYSTEM)
+	{
 		cout << "PTHREAD SCOPE SYSTEM" << endl;
-    }
-    else if (scope == PTHREAD_SCOPE_PROCESS)
-    {
+	}
+	else if (scope == PTHREAD_SCOPE_PROCESS)
+	{
 		cout << "PTHREAD SCOPE PROCESS" << endl;
-    }
-    else
-    {
+	}
+	else
+	{
 		cout << "PTHREAD SCOPE UNKNOWN" << endl;
 	}
 }
@@ -828,27 +831,27 @@ void print_scope(void)
 
 void print_scheduler(void)
 {
-   int schedType;
+	int schedType;
 
-   schedType = sched_getscheduler(getpid());
+	schedType = sched_getscheduler(getpid());
 
-   switch(schedType)
-   {
-       case SCHED_FIFO:
-           cout << "Pthread Policy is SCHED_FIFO" << endl;
-           break;
-       case SCHED_OTHER:
-           cout << "Pthread Policy is SCHED_OTHER" << endl;
-           exit(EXIT_FAILURE);
-         break;
-       case SCHED_RR:
-           cout << "Pthread Policy is SCHED_RR" << endl;
-           exit(EXIT_FAILURE);
-           break;
-       default:
-           cout << "Pthread Policy is UNKNOWN" << endl;
-           exit(EXIT_FAILURE);
-   }
+	switch(schedType)
+	{
+		case SCHED_FIFO:
+			cout << "Pthread Policy is SCHED_FIFO" << endl;
+			break;
+		case SCHED_OTHER:
+			cout << "Pthread Policy is SCHED_OTHER" << endl;
+			exit(EXIT_FAILURE);
+			break;
+		case SCHED_RR:
+			cout << "Pthread Policy is SCHED_RR" << endl;
+			exit(EXIT_FAILURE);
+			break;
+		default:
+			cout << "Pthread Policy is UNKNOWN" << endl;
+			exit(EXIT_FAILURE);
+	}
 }
 
 
@@ -856,6 +859,7 @@ void signal_handler(int signo, siginfo_t *info, void *extra)
 {
 	exit_cond = true;
 }
+
 
 void set_signal_handler(void)
 {
@@ -870,6 +874,7 @@ void set_signal_handler(void)
 		exit(EXIT_FAILURE);
 	}
 }
+
 
 /* Function for computing time difference between two input timespec structures and saving in third timespec structure.
  * Reference is provided to seqgen.c by Prof. Sam Siewert for delta_t function 

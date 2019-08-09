@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <semaphore.h>
 #include <sys/syscall.h>
+#include <X11/Xlib.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -18,8 +19,18 @@
 using namespace cv;
 using namespace std;
 
+//#define USING_CALTECH_VIDEO
+
+#ifdef USING_CALTECH_VIDEO
 #define COLS							(320)
 #define ROWS							(240)
+#endif
+
+#ifndef USING_CALTECH_VIDEO
+#define COLS							(320)
+#define ROWS							(180)
+#endif
+
 #define NSEC_PER_SEC						(1000000000)
 
 //Waitkey Keys
@@ -112,5 +123,3 @@ Mat create_mask(Mat src_half);
 Mat detect_lanes(Mat contrast, Mat mask, Mat roi_mask);
 Mat roi_mask(Mat src_half);
 void process_lanes(vector<Vec4i> lane, int side);
-
-
