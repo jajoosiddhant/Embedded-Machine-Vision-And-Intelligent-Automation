@@ -38,6 +38,19 @@ using namespace std;
 #define FPS_SIGN						(4)
 #define FPS_SYSTEM						(5)
 
+//Sides
+#define LEFT							(1)
+#define RIGHT							(2)
+
+//Canny Threshold Values
+#define CANNY_THRESHOLD_1					(40)
+#define CANNY_THRESHOLD_2					(120)
+
+//Hough Lines Threshold Values
+#define	HOUGH_THRESHOLD						(40)
+#define	HOUGH_MIN_LINE_LENGTH					(10)
+#define	HOUGH_MAX_LINE_GAP					(80)
+
 
 #define handle_error(msg) \
 	{ \
@@ -54,11 +67,19 @@ typedef struct
 struct img_cooordinates
 {
 	vector<Rect> found_loc;
+	Vec4i g_left;
+	Vec4i g_right;
 } img_char;
 
+
+//Variable Declarations
 pthread_t threads[NUM_THREADS];
 threadParams_t threadParams[NUM_THREADS];
 pthread_attr_t rt_sched_attr[NUM_THREADS];
+struct sched_param rt_param[NUM_THREADS];
+int rt_max_prio, rt_min_prio;
+struct sched_param main_param;
+pthread_attr_t main_attr;
 
 bool exit_cond;
 char c, output_frame[40];
@@ -73,3 +94,23 @@ void thread_create(void);
 void threadcpu_info(threadParams_t* threadParams);
 void thread_core_set(void);
 void fps_calc(struct timespec start, int frame_cnt, uint8_t fps_thread);
+void set_thread_attr(void);
+void print_scheduler(void);
+void* pedestrian_detect(void* threadp);
+void* lane_follower(void* threadp);
+void* sign_recog(void* threadp);
+void* vehicle_detect(void* threadp);
+int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t);
+void signal_handler(int signo, siginfo_t *info, void *extra);
+void set_signal_handler(void);
+void print_scope(void);
+
+//Functions related to lane detect. Copy these in master.
+Mat preprocess(Mat src);
+Mat equalize(Mat src_half);
+Mat create_mask(Mat src_half);
+Mat detect_lanes(Mat contrast, Mat mask, Mat roi_mask);
+Mat roi_mask(Mat src_half);
+void process_lanes(vector<Vec4i> lane, int side);
+
+

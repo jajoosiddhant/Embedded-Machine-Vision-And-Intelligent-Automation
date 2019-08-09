@@ -1,205 +1,7 @@
+
+
 #include "main.h"
 
-
-void signal_handler(int signo, siginfo_t *info, void *extra)
-{
-	exit_cond = true;
-}
-
-void set_signal_handler(void)
-{
-	struct sigaction action;
-
-	action.sa_flags = SA_SIGINFO;
-	action.sa_sigaction = signal_handler;
-
-	if(sigaction(SIGINT, &action, NULL) == -1)
-	{
-		printf("Error calling signal handler\n");
-		exit(EXIT_FAILURE);
-	}
-}
-
-/* Function for computing time difference between two input timespec structures and saving in third timespec structure.
- * Reference is provided to seqgen.c by Prof. Sam Siewert for delta_t function 
- * */
-int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t)
-{
-	int dt_sec=stop->tv_sec - start->tv_sec;
-	int dt_nsec=stop->tv_nsec - start->tv_nsec;
-
-	if(dt_sec >= 0)
-	{
-		if(dt_nsec >= 0)
-		{
-			delta_t->tv_sec=dt_sec;
-			delta_t->tv_nsec=dt_nsec;
-		}
-		else
-		{
-			delta_t->tv_sec=dt_sec-1;
-			delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
-		}
-	}
-	else
-	{
-		if(dt_nsec >= 0)
-		{
-			delta_t->tv_sec=dt_sec;
-			delta_t->tv_nsec=dt_nsec;
-		}
-		else
-		{
-			delta_t->tv_sec=dt_sec-1;
-			delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
-		}
-	}
-	return(1);
-}
-
-
-void* pedestrian_detect(void* threadp)
-{
-	//Variable Declaration
-	threadParams_t* threadParams = (threadParams_t*)threadp;
-	struct timespec start_time;
-	int frame_cnt = 0;
-
-	Mat mat, resz_mat;
-	HOGDescriptor hog;
-	hog.setSVMDetector(HOGDescriptor::getDefaultPeopleDetector());
-			
-	//Printing thread information 
-	threadcpu_info(threadParams);
-	
-	//Note Start time to calculate FPS
-   	clock_gettime(CLOCK_REALTIME, &start_time);
-	
-	while(1)
-	{
-		sem_wait(&sem_main);	//semaphore from main
-		mat = g_frame.clone();
-		cvtColor(mat, mat, CV_BGR2GRAY);
-		resize(mat, resz_mat, Size(COLS, ROWS));	//resize to 320x240
-
-		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
-		sem_post(&sem_pedestrian);
-
-//		cout << "Hello Pedestrians" << endl;
-		frame_cnt++;
-
-		if((c == 27) || (exit_cond))
-		{
-			break;
-		}
-	}
-
-	//Calculating FPS for pedestrian detection
-//	fps_calc(start_time, frame_cnt, FPS_PEDESTRIAN);
-
-	pthread_exit(NULL);
-}
-
-
-void* lane_follower(void* threadp)
-{
-	//Variable Declaration
-	threadParams_t* threadParams = (threadParams_t*)threadp;
-	struct timespec start_time;
-	int frame_cnt = 0;
-		
-	//Printing thread information 
-	threadcpu_info(threadParams);
-	
-	//Note Start time to calculate FPS
-   	clock_gettime(CLOCK_REALTIME, &start_time);
-
-	while(1)
-	{
-		sem_wait(&sem_main);
-
-	//	cout << "Hello lane detect" << endl;
-
-		frame_cnt++;
-
-		sem_post(&sem_lane);
-
-		usleep(25000);
-		
-		if((c == 27) || (exit_cond))
-		{
-			break;
-		}
-
-	}
-	
-	//Calculating FPS for lane detection
-//	fps_calc(start_time, frame_cnt, FPS_LANE);
-	
-	pthread_exit(NULL);
-
-}
-
-
-void* sign_recog(void* threadp)
-{
-	//Variable Declaration
-	threadParams_t* threadParams = (threadParams_t*)threadp;
-	struct timespec start_time;
-	int frame_cnt = 0;
-		
-	//Printing thread information 
-	threadcpu_info(threadParams);
-	
-	//Note Start time to calculate FPS
-   	clock_gettime(CLOCK_REALTIME, &start_time);
-
-
-	for(int i=0; i<250; i++)
-	{
-		i++;
-		if((c == 27) || (exit_cond))
-		{
-			break;
-		}
-	}
-	
-	//Calculating FPS for sign detection
-//	fps_calc(start_time, frame_cnt, FPS_SIGN);
-
-	pthread_exit(NULL);
-
-}
-
-
-void* vehicle_detect(void* threadp)
-{
-	//Variable Declaration
-	threadParams_t* threadParams = (threadParams_t*)threadp;
-	struct timespec start_time;
-	int frame_cnt = 0;
-		
-	//Printing thread information 
-	threadcpu_info(threadParams);
-	
-	//Note Start time to calculate FPS
-   	clock_gettime(CLOCK_REALTIME, &start_time);
-
-	for(int i=0; i<250; i++)
-	{
-		i++;
-		if((c == 27) || (exit_cond))
-		{
-			break;
-		}
-	}
-	
-	//Calculating FPS for sign detection
-//	fps_calc(start_time, frame_cnt, FPS_VEHICLE);
-
-	pthread_exit(NULL);
-
-}
 
 int main(int argc, char** argv)
 {
@@ -207,6 +9,9 @@ int main(int argc, char** argv)
 	struct timespec start_time;
 	exit_cond = false;
 	Mat detector;
+	int rc;
+	pid_t mainpid;
+
 	
 	if(argc < 2)
 	{
@@ -217,50 +22,98 @@ int main(int argc, char** argv)
 
 	//Declaring VideoCapture and VideoWriter objects to read and write videos
 	VideoCapture capture(argv[1]);
-//	VideoWriter output_v;
-//	Size size = Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH)/2,
-//			 (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)/2);		//Size of capture object, height and width
-//	output_v.open("output.avi", CV_FOURCC('M','P','4','V'), cap.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
+	VideoWriter output_v;
+	Size size = Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH)/2,
+			 (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)/2);		//Size of capture object, height and width
+	output_v.open("output.avi", CV_FOURCC('M','P','4','V'), cap.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
 
-	set_signal_handler();
+	//Initializing Semaphores and Signal Handler.
+	set_signal_handler();													
+	sem_create();															
 
-	//Initializing Semaphores
-	sem_create();
+	//Fetching and printing Max and Min priority values for SCHED_FIFO.
+	mainpid=getpid();
+    rt_max_prio = sched_get_priority_max(SCHED_FIFO);
+    rt_min_prio = sched_get_priority_min(SCHED_FIFO);
+	cout << "MAX priority= " << rt_max_prio << endl;
+    cout << "MIN priority= " << rt_min_prio << endl;
+    
+	//Setting highest priority to main which will act as the scheduler.
+	rc = sched_getparam(mainpid, &main_param);
+    main_param.sched_priority = rt_max_prio - 10;
+    rc = sched_setscheduler(getpid(), SCHED_FIFO, &main_param);
+    if(rc < 0) 
+    {
+		perror("Cannot Set priority of Main thread.\n");
+		exit(EXIT_FAILURE);
+    }
+    
+    //Printing the set scheduled policy, scope and priorities value.
+    print_scheduler();
+	print_scope();
 
+    //Setting thread attributes
+    set_thread_attr();
+    
 	//Setting up core affinity for different services
-	thread_core_set();
+	//thread_core_set();
 
 	//Creatintg 4 threads for individual services.
 	thread_create();
-		      
+	
+	//note Start time to calculate average FPS.	      
 	clock_gettime(CLOCK_REALTIME, &start_time);
 
+	// Create Sequencer thread, which like a cyclic executive, is highest prio
+	cout << "STARTING SCHEDULER" << endl;
+	
 	while(1)
 	{
-		capture >> g_frame;
-
-		//Post semaphore 4 times, once for each of the 4 threads
-		sem_post(&sem_main);
-		sem_post(&sem_main);
-		//sem_post(&sem_main);
-		//sem_post(&sem_main);
-		
-		detector = g_frame.clone();
-		resize(detector, detector, Size(COLS, ROWS));
-
-
-		for(int i=0; i<img_char.found_loc.size(); i++)
-		{
-			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
-		}
+		capture >> g_frame;		
 		
 		//Counting number of frames
 		frame_cnt++;
 		
-		sem_wait(&sem_pedestrian);
-		sem_wait(&sem_lane);
-		//sem_wait(&sem_vehicle);
-		//sem_wait(&sem_sign);
+		// Pedestrian Service = RT_MAX-20 @200Hz
+		if((frame_cnt % 1) == 0)
+        {
+            sem_post(&sem_pedestrian);
+        }
+        
+        // Lane Detection Service = RT_MAX-20 @200Hz
+        if((frame_cnt % 1) == 0)
+        {
+            sem_post(&sem_lane);
+        }
+ /*       
+        // Vehicle Service = RT_MAX-20 @200Hz
+        if((frame_cnt % 1) == 0)
+        {
+            sem_post(&sem_vehicle);
+        }
+        
+        // Sign Service = RT_MAX-20 @ 200 Hz
+        if((frame_cnt % 1) == 0)
+        {
+            sem_post(&sem_sign);
+        }
+   */     
+
+
+//		detector = g_frame.clone();
+//		resize(detector, detector, Size(COLS, ROWS));
+//		for(int i=0; i<img_char.found_loc.size(); i++)
+//		{
+//			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
+//		}
+
+
+//		pyrDown(g_frame, g_frame_res);
+//		line( g_frame_res, Point(img_char.g_left[0], img_char.g_left[1] + g_frame_res.rows/2), Point(img_char.g_left[2], img_char.g_left[3] + g_frame_res.rows/2), Scalar(0,0,255), 3, CV_AA);
+//		line( g_frame_res, Point(img_char.g_right[0], img_char.g_right[1] + g_frame_res.rows/2), Point(img_char.g_right[2], img_char.g_right[3] + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);
+		//pyrDown(g_frame_res, g_frame);
+
+
 		
 		c = waitKey(5);
 		if((c == 27) || (exit_cond))
@@ -269,7 +122,7 @@ int main(int argc, char** argv)
 		}
 
 		imshow("Video", g_frame);
-		imshow("Detector", detector);
+		//imshow("Detector", detector);
 	}
 	
 	//Calculating Average FPS
@@ -285,9 +138,230 @@ int main(int argc, char** argv)
 
 	//Destroying all Semaphores
 	sem_destroy_all();
+	destroyAllWindows();
 	
 	return 0;
 }
+
+
+
+
+
+void* pedestrian_detect(void* threadp)
+{
+	
+	//Variable Declaration
+	threadParams_t* threadParams = (threadParams_t*)threadp;
+	struct timespec start_time;
+	int frame_cnt = 0;
+
+	Mat mat, resz_mat;
+	HOGDescriptor hog;
+	hog.setSVMDetector(HOGDescriptor::getDefaultPeopleDetector());
+			
+	//Printing thread information 
+	//threadcpu_info(threadParams);
+	
+	//Note Start time to calculate FPS
+   	clock_gettime(CLOCK_REALTIME, &start_time);
+	
+	while(1)
+	{
+		sem_wait(&sem_pedestrian);				//semaphore from main
+
+		mat = g_frame.clone();
+		cvtColor(mat, mat, CV_BGR2GRAY);
+		resize(mat, resz_mat, Size(COLS, ROWS));	//resize to 320x240
+
+		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
+
+		frame_cnt++;
+
+		if((c == 27) || (exit_cond))
+		{
+			break;
+		}
+	}
+
+	//Calculating FPS for pedestrian detection
+	fps_calc(start_time, frame_cnt, FPS_PEDESTRIAN);
+
+	pthread_exit(NULL);
+}
+
+
+void* lane_follower(void* threadp)
+{
+	//Variable Declaration
+	threadParams_t* threadParams = (threadParams_t*)threadp;
+	struct timespec start_time;
+	int frame_cnt = 0;
+	Mat src;
+	Mat src_half, contrast, mask;		
+	Mat detect_lanes, blur, edge;
+	Mat canny_roi;
+	//Mat src_res;
+	
+	double slope;
+	int x1, x2, y1, y2;
+		
+	//Printing thread information 
+	//threadcpu_info(threadParams);
+	
+	//Note Start time to calculate FPS
+   	clock_gettime(CLOCK_REALTIME, &start_time);
+
+	while(1)
+	{
+		sem_wait(&sem_lane);
+	
+	
+		src = g_frame.clone();
+		//Preprocess frames
+		src_half = preprocess(src);		
+		
+		//Return a contrast image
+		contrast = equalize(src_half);
+		
+		//Returns a mask to detect lanes
+		mask = create_mask(src_half);
+		  
+		
+		//Creating Polygon ROI
+		Point roi_pt[1][4];
+		int num = 4;
+
+		Mat roi_mask = Mat::zeros(Size(src_half.cols, src_half.rows), CV_8U);
+		//Points for ROI mask
+		roi_pt[0][0] = Point(2*src_half.cols/5, src_half.rows/5);					//Apex
+		roi_pt[0][1] = Point(3*src_half.cols/5, src_half.rows/5);
+		roi_pt[0][3] = Point(src_half.cols/5, src_half.rows);						//Bottom left vertice
+		roi_pt[0][2] = Point(4*src_half.cols/5 , src_half.rows);			//Bottomk right vertice
+		const Point* pts_list[1] = {roi_pt[0]};
+		fillPoly(roi_mask, pts_list, &num, 1, 255, 8);						//Change to fillConvexPolly for faster results
+	
+
+		//Detect lanes
+		vector<Vec4i> lines;
+		vector<Vec4i> left;
+		vector<Vec4i> right;
+		
+		bitwise_and(contrast, mask, detect_lanes);
+//		imshow("lanes Detected", detect_lanes);
+		
+		//Applying gaussian filter to reduce noise followed by canny transform for edge detection.
+		GaussianBlur( detect_lanes, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
+		Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);	//Can change to false
+
+		bitwise_and(edge, roi_mask, canny_roi);
+		imshow("Canny Mask", canny_roi);
+		
+		//Detect and Draw Lines
+		HoughLinesP(canny_roi, lines, 1, CV_PI/180, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP );
+		for( size_t i = 0; i < lines.size(); i++ )
+		{
+			Vec4i l = lines[i];
+			
+			slope = (double)((l[3] - l[1])/(double)(l[2] - l[0]));
+			if (slope > 0.5)
+			{
+				right.push_back(lines[i]);
+			}				
+			else if (slope < (-0.5))
+			{
+				left.push_back(lines[i]);
+			}
+		}
+				
+		process_lanes(left, LEFT);
+		process_lanes(right, RIGHT);
+
+
+		frame_cnt++;
+
+		if((c == 27) || (exit_cond))
+		{
+			break;
+		}
+
+	}
+	
+	//Calculating FPS for lane detection
+	fps_calc(start_time, frame_cnt, FPS_LANE);
+	
+	pthread_exit(NULL);
+
+}
+
+
+void* sign_recog(void* threadp)
+{
+	//Variable Declaration
+	threadParams_t* threadParams = (threadParams_t*)threadp;
+	struct timespec start_time;
+	int frame_cnt = 0;
+		
+	//Printing thread information 
+	//threadcpu_info(threadParams);
+	
+	//Note Start time to calculate FPS
+   	clock_gettime(CLOCK_REALTIME, &start_time);
+
+
+	while(1)
+	{
+		sem_wait(&sem_sign);
+
+		frame_cnt++;
+
+		if((c == 27) || (exit_cond))
+		{
+			break;
+		}
+	}
+	
+	//Calculating FPS for sign detection
+	fps_calc(start_time, frame_cnt, FPS_SIGN);
+
+	pthread_exit(NULL);
+
+}
+
+
+void* vehicle_detect(void* threadp)
+{
+	//Variable Declaration
+	threadParams_t* threadParams = (threadParams_t*)threadp;
+	struct timespec start_time;
+	int frame_cnt = 0;
+	
+		
+	//Printing thread information 
+	//threadcpu_info(threadParams);
+	
+	//Note Start time to calculate FPS
+   	clock_gettime(CLOCK_REALTIME, &start_time);
+
+	while(1)
+	{
+		sem_wait(&sem_vehicle);
+
+		frame_cnt++;
+
+		if((c == 27) || (exit_cond))
+		{
+			break;
+		}
+	}
+	
+	//Calculating FPS for sign detection
+	fps_calc(start_time, frame_cnt, FPS_VEHICLE);
+
+	pthread_exit(NULL);
+
+}
+
+
 
 
 /**
@@ -363,21 +437,29 @@ void thread_core_set(void)
  */
 void thread_create(void)
 {
+
 	//Pedestrian Detection Thread
+	rt_param[0].sched_priority=rt_max_prio-20;
+    pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
 	pthread_create(&threads[PED_DETECT_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     		// use default attributes
 			pedestrian_detect, 						// thread function entry point
 			(void *)&(threadParams[PED_DETECT_TH]) 				// parameters to pass in
 		      );
 
+
 	//Lane Detection Thread
+	rt_param[1].sched_priority=rt_max_prio-20;
+    pthread_attr_setschedparam(&rt_sched_attr[1], &rt_param[1]);
 	pthread_create(&threads[LANE_FOLLOW_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[LANE_FOLLOW_TH]),     		// use default attributes
 			lane_follower, 							// thread function entry point
 			(void *)&(threadParams[LANE_FOLLOW_TH]) 			// parameters to pass in
 		      );
-
+/*
 	//Sign Detection Thread
+	rt_param[2].sched_priority=rt_max_prio-20;
+    pthread_attr_setschedparam(&rt_sched_attr[2], &rt_param[2]);
 	pthread_create(&threads[SIGN_RECOG_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[SIGN_RECOG_TH]),     		// use default attributes
 			sign_recog, 							// thread function entry point
@@ -385,12 +467,14 @@ void thread_create(void)
 		      );
 
 	//Vehicle Detection Thread
+	rt_param[3].sched_priority=rt_max_prio-20;
+    pthread_attr_setschedparam(&rt_sched_attr[3], &rt_param[3]);
 	pthread_create(&threads[VEH_DETECT_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[VEH_DETECT_TH]),     		// use default attributes
 			vehicle_detect, 						// thread function entry point
 			(void *)&(threadParams[VEH_DETECT_TH]) 				// parameters to pass in
 		      );
-
+*/
 }
 
 
@@ -413,8 +497,31 @@ void threadcpu_info(threadParams_t* threadParams)
 			cout << " CPU-" << i;
 		}
 	}
+	
 	cout << " with PID = " << syscall(SYS_gettid) << endl;
 	
+}
+
+
+
+void set_thread_attr(void)
+{
+	int i, rc;
+	
+	for(i=0; i < NUM_THREADS; i++)
+    {
+
+      rc=pthread_attr_init(&rt_sched_attr[i]);
+      rc=pthread_attr_setinheritsched(&rt_sched_attr[i], PTHREAD_EXPLICIT_SCHED);
+      rc=pthread_attr_setschedpolicy(&rt_sched_attr[i], SCHED_FIFO);
+      //rc=pthread_attr_setaffinity_np(&rt_sched_attr[i], sizeof(cpu_set_t), &threadcpu);
+	  pthread_attr_setscope(&rt_sched_attr[i], PTHREAD_SCOPE_SYSTEM);
+      
+	  rt_param[i].sched_priority=rt_max_prio-20;
+      pthread_attr_setschedparam(&rt_sched_attr[i], &rt_param[i]);
+
+      threadParams[i].threadIdx=i;
+    }
 }
 
 
@@ -437,13 +544,14 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
 			cout << endl << "OVERALL FPS:" << endl;
-			cout << "Number of frames: "<< frame_cnt << endl;
-			cout << "Duration: "<< diff_time.tv_sec << endl;
-			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
-			sem_post(&sem_main);
-			sem_post(&sem_main);
-			sem_post(&sem_main);
-			sem_post(&sem_main);
+			cout << "OVERALL Number of frames: "<< frame_cnt << endl;
+			cout << "OVERALL Duration: "<< diff_time.tv_sec << endl;
+			cout << "OVERALL Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			sem_post(&sem_pedestrian);
+			sem_post(&sem_lane);
+			sem_post(&sem_vehicle);
+			sem_post(&sem_sign);
+
 			break;
 		}
 
@@ -452,9 +560,9 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
 			cout << endl << "PEDESTRIAN FPS:" << endl;
-			cout << "Number of frames: "<< frame_cnt << endl;
-			cout << "Duration: "<< diff_time.tv_sec << endl;
-			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			cout << "PEDESTRIAN Number of frames: "<< frame_cnt << endl;
+			cout << "PEDESTRIAN Duration: "<< diff_time.tv_sec << endl;
+			cout << "PEDESTRIAN Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
 			break;
 		}
 		
@@ -463,9 +571,9 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
 			cout << endl << "LANE FPS:" << endl;
-			cout << "Number of frames: "<< frame_cnt << endl;
-			cout << "Duration: "<< diff_time.tv_sec << endl;
-			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			cout << "LANE Number of frames: "<< frame_cnt << endl;
+			cout << "LANE Duration: "<< diff_time.tv_sec << endl;
+			cout << "LANE Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
 			break;
 		}
 		
@@ -474,9 +582,9 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
 			cout << endl << "VEHICLE FPS:" << endl;
-			cout << "Number of frames: "<< frame_cnt << endl;
-			cout << "Duration: "<< diff_time.tv_sec << endl;
-			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			cout << "VEHICLE Number of frames: "<< frame_cnt << endl;
+			cout << "VEHICLE Duration: "<< diff_time.tv_sec << endl;
+			cout << "VEHICLE Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
 			break;
 		}
 		
@@ -485,9 +593,9 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
 			cout << endl << "SIGN FPS:" << endl;
-			cout << "Number of frames: "<< frame_cnt << endl;
-			cout << "Duration: "<< diff_time.tv_sec << endl;
-			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			cout << "SIGN Number of frames: "<< frame_cnt << endl;
+			cout << "SIGN Duration: "<< diff_time.tv_sec << endl;
+			cout << "SIGN Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
 			break;
 		}
 	}
@@ -504,4 +612,298 @@ void sem_destroy_all(void)
 	sem_destroy(&sem_main);
 	sem_destroy(&sem_pedestrian);
 	sem_destroy(&sem_lane);
+}
+
+
+
+//Functions related to lane detection.
+
+/**
+ * @brief This function reduces the resolution by 2 and eliminates the top part of the image.
+ * @param src The image that needs to be processed.
+ * @return The processed image.
+ */
+Mat preprocess(Mat src)
+{
+	Mat src_res, src_half;
+	
+	//Reduce the resolution by 2
+	pyrDown(src, src_res);
+	
+	//Crop the image to get bottom half because sky is not required. Thus eliminating half the pixels.
+	src_half = src_res( Rect( 0, src_res.rows/2, src_res.cols, src_res.rows/2) );
+	
+	//imshow("Original", src_half);
+	
+	return src_half;
+}
+
+
+/**
+ * @brief This function converts the image into grayscale and improves contrast.
+ * @param src_half The image that needs to be processed.
+ * @return The processed image.
+ */
+Mat equalize(Mat src_half)
+{
+	Mat gray, contrast;
+	
+	//Convert to grayscale
+	cvtColor(src_half, gray, COLOR_BGR2GRAY);
+	
+	//Increase Contrast to detect white lines and remove any disturbance due to road color.
+	equalizeHist(gray, contrast);
+	
+	//imshow("Contrast Image", contrast);
+	
+	return contrast;
+}
+
+
+/**
+ * @brief This function creates mask to detect lanes.
+ * @param src_half The image that needs to be processed.
+ * @return The processed image.
+ */
+Mat create_mask(Mat src_half)
+{
+	Mat hls, white;
+	Mat hsv, yellow;
+	Mat mask;
+	
+	//Convert Original Image to HLS
+	cvtColor(src_half, hls, COLOR_BGR2HLS);								//Shows white as yellow.
+	//imshow("HLS", hls);
+	
+	//Lower value of Saturation makes changes. i.e middle one. Reducing the lower saturation value includes yellow lanes and background as well	
+	//If want to incorpotate yellow lines change lower threshold of saturation to 70 or keep 100.
+	inRange(hls, Scalar(20,100,0), Scalar(40,255,50), white);				//brightness can be 0 to 50 also.	
+	//imshow("HLS white", white);	
+
+	//Convert Original Image to HSV
+	cvtColor(src_half, hsv, COLOR_BGR2HSV);								//Shows yellow as yellow.
+	//imshow("HSV", hsv);
+	
+	//Brightness makes the difference (eliminates background) - Do not change brightness value. i.e the last value (80)
+	//Saturation value makes changes i.e middle one. If want to make the yellow lines more bold increase upper saturation value. above 100 introduces background.
+	inRange(hsv, Scalar(20,80,80), Scalar(40,255,255), yellow); 					
+	//imshow("HSV YELLOW", yellow);
+	
+	
+	bitwise_or(white, yellow, mask);
+	//imshow("Mask", mask);
+
+	return mask;
+}
+
+//Not required. Can delete.
+Mat detect_lanes(Mat contrast, Mat mask, Mat roi_mask)
+{
+	Mat detect_lanes, blur, edge;
+	Mat canny_roi;
+	vector<Vec4i> lines;
+	vector<Vec4i> left;
+	vector<Vec4i> right;
+	
+	bitwise_and(contrast, mask, detect_lanes);
+	imshow("lanes Detected", detect_lanes);
+	
+	//Applying gaussian filter to reduce noise followed by canny transform for edge detection.
+	GaussianBlur( detect_lanes, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
+	Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);	//Can change to false
+
+	bitwise_and(edge, roi_mask, canny_roi);
+	imshow("Canny Mask", canny_roi);
+	
+	//Detect and Draw Lines
+	HoughLinesP(canny_roi, lines, 1, CV_PI/180, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP );
+	for( size_t i = 0; i < lines.size(); i++ )
+	{
+		Vec4i l = lines[i];
+		
+		double slope = (double)((l[3] - l[1])/(double)(l[2] - l[0]));
+		if (slope > 0.5 || slope < (-0.5))
+		{
+			//cout << "y = " << l[0] << "and threshold" << src_res.cols/2 << endl;
+			if(l[0] < (g_frame.cols/2))
+			{
+				left.push_back(lines[i]);
+			}
+			else
+			{
+				right.push_back(lines[i]);
+			}
+			
+			line( g_frame, Point(l[0], l[1] + g_frame.rows/2), Point(l[2], l[3] + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);	
+		}
+		
+	}
+}
+
+
+//Not required. Can delete.
+Mat roi_mask(Mat src_half)
+{
+		cout << "finished creating Mask ------------" << endl;
+		fflush(stdout);
+	//Creating Polygon ROI
+	Point roi_pt[1][4];
+	int num = 4;
+	cout << "finished creating Mask ------------" << endl;
+	Mat roi_mask = Mat::zeros(Size(src_half.cols, src_half.rows), CV_8U);
+	//Points for ROI mask
+	roi_pt[0][0] = Point(2*src_half.cols/5, src_half.rows/5);					//Apex
+	roi_pt[0][1] = Point(3*src_half.cols/5, src_half.rows/5);
+	roi_pt[0][3] = Point(src_half.cols/5, src_half.rows);						//Bottom left vertice
+	roi_pt[0][2] = Point(4*src_half.cols/5 , src_half.rows);			//Bottomk right vertice
+	const Point* pts_list[1] = {roi_pt[0]};
+	fillPoly(roi_mask, pts_list, &num, 1, 255, 8);						//Change to fillConvexPolly for faster results
+	
+	imshow("ROI MASK", roi_mask);
+	cout << "finished creating Mask" << endl;
+	return roi_mask;
+}
+
+
+void process_lanes(vector<Vec4i> lane, int side)
+{
+	//Reset Coordinates
+	int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
+			
+	for( size_t i = 0; i < lane.size(); i++ )
+	{
+		Vec4i c = lane[i];
+		
+		x1 += c[0];
+		y1 += c[1];
+		x2 += c[2];
+		y2 += c[3]; 
+	}
+	
+	x1 = x1/lane.size();
+	y1 = y1/lane.size();
+	x2 = x2/lane.size();
+	y2 = y2/lane.size();
+			
+	if(side == LEFT)
+	{
+		img_char.g_left[0] = x1;
+		img_char.g_left[1] = y1;
+		img_char.g_left[2] = x2;
+		img_char.g_left[3] = y1;
+		
+//		line( abcd, Point(x1, y1 + abcd.rows/2), Point(x2, y2 + abcd.rows/2), Scalar(0,0,255), 3, CV_AA);
+//		imshow("ABCD", abcd);
+	}
+	else if(side == RIGHT)
+	{
+		img_char.g_right[0] = x1;
+		img_char.g_right[1] = y1;
+		img_char.g_right[2] = x2;
+		img_char.g_right[3] = y1;
+	}		
+//	line( g_frame, Point(x1, y1 + g_frame.cols/2), Point(x2, y2 + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);		
+		
+}
+
+void print_scope(void)
+{
+	int scope;
+	
+    pthread_attr_getscope(&main_attr, &scope);
+    if(scope == PTHREAD_SCOPE_SYSTEM)
+    {
+		cout << "PTHREAD SCOPE SYSTEM" << endl;
+    }
+    else if (scope == PTHREAD_SCOPE_PROCESS)
+    {
+		cout << "PTHREAD SCOPE PROCESS" << endl;
+    }
+    else
+    {
+		cout << "PTHREAD SCOPE UNKNOWN" << endl;
+	}
+}
+
+
+void print_scheduler(void)
+{
+   int schedType;
+
+   schedType = sched_getscheduler(getpid());
+
+   switch(schedType)
+   {
+       case SCHED_FIFO:
+           cout << "Pthread Policy is SCHED_FIFO" << endl;
+           break;
+       case SCHED_OTHER:
+           cout << "Pthread Policy is SCHED_OTHER" << endl;
+           exit(EXIT_FAILURE);
+         break;
+       case SCHED_RR:
+           cout << "Pthread Policy is SCHED_RR" << endl;
+           exit(EXIT_FAILURE);
+           break;
+       default:
+           cout << "Pthread Policy is UNKNOWN" << endl;
+           exit(EXIT_FAILURE);
+   }
+}
+
+
+void signal_handler(int signo, siginfo_t *info, void *extra)
+{
+	exit_cond = true;
+}
+
+void set_signal_handler(void)
+{
+	struct sigaction action;
+
+	action.sa_flags = SA_SIGINFO;
+	action.sa_sigaction = signal_handler;
+
+	if(sigaction(SIGINT, &action, NULL) == -1)
+	{
+		printf("Error calling signal handler\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+/* Function for computing time difference between two input timespec structures and saving in third timespec structure.
+ * Reference is provided to seqgen.c by Prof. Sam Siewert for delta_t function 
+ * */
+int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t)
+{
+	int dt_sec=stop->tv_sec - start->tv_sec;
+	int dt_nsec=stop->tv_nsec - start->tv_nsec;
+
+	if(dt_sec >= 0)
+	{
+		if(dt_nsec >= 0)
+		{
+			delta_t->tv_sec=dt_sec;
+			delta_t->tv_nsec=dt_nsec;
+		}
+		else
+		{
+			delta_t->tv_sec=dt_sec-1;
+			delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
+		}
+	}
+	else
+	{
+		if(dt_nsec >= 0)
+		{
+			delta_t->tv_sec=dt_sec;
+			delta_t->tv_nsec=dt_nsec;
+		}
+		else
+		{
+			delta_t->tv_sec=dt_sec-1;
+			delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
+		}
+	}
+	return(1);
 }
