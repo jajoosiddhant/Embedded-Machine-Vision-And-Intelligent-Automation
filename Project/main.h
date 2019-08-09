@@ -78,6 +78,7 @@ typedef struct
 struct img_cooordinates
 {
 	vector<Rect> found_loc;
+	vector<Rect> traffic;
 	Vec4i g_left;
 	Vec4i g_right;
 } img_char;

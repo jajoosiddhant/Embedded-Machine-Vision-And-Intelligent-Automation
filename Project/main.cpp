@@ -122,7 +122,7 @@ int main(int argc, char** argv)
 		imshow("Detector", detector);
 		output_v.write(detector);
 
-		c = waitKey(33);
+		c = waitKey(10);
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -147,9 +147,6 @@ int main(int argc, char** argv)
 	
 	return 0;
 }
-
-
-
 
 
 void* pedestrian_detect(void* threadp)
@@ -306,8 +303,12 @@ void* sign_recog(void* threadp)
 	struct timespec start_time;
 	int frame_cnt = 0;
 		
+	Mat mat, resz_mat;
+	CascadeClassifier cascade_traffic;
+	cascade_traffic.load("./traffic_light.xml");
+	
 	//Printing thread information 
-	//threadcpu_info(threadParams);
+	threadcpu_info(threadParams);
 	
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
@@ -316,6 +317,16 @@ void* sign_recog(void* threadp)
 	while(1)
 	{
 		sem_wait(&sem_sign);
+		mat = g_frame.clone();
+		cvtColor(mat, mat, CV_BGR2GRAY);
+		resize(mat, resz_mat, Size(COLS/2, ROWS/2));
+		equalizeHist(resz_mat, resz_mat);
+
+//		cascade_traffic.detectMultiScale(resz_mat, img_char.traffic, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(8, 8), Size(16, 16));
+
+		frame_cnt++;
+
+//		cout << "Hello traffic" << endl;
 
 		frame_cnt++;
 
