@@ -1,65 +1,155 @@
+
+
 #include "main.h"
 
 
-void signal_handler(int signo, siginfo_t *info, void *extra)
+int main(int argc, char** argv)
 {
-	exit_cond = true;
-}
+	int frame_cnt = 0;
+	struct timespec start_time;
+	exit_cond = false;
+	Mat detector;
+	int rc;
+	pid_t mainpid;
 
-void set_signal_handler(void)
-{
-	struct sigaction action;
-
-	action.sa_flags = SA_SIGINFO;
-	action.sa_sigaction = signal_handler;
-
-	if(sigaction(SIGINT, &action, NULL) == -1)
+	
+	if(argc < 2)
 	{
-		printf("Error calling signal handler\n");
+		cout << endl << "Usage: ./smart_car input_vdeo_file" << endl;
+		cout << "Exiting Program";
 		exit(EXIT_FAILURE);
 	}
+
+	//Declaring VideoCapture and VideoWriter objects to read and write videos
+	VideoCapture capture(argv[1]);
+	VideoWriter output_v;
+	Size size = Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH)/2,
+			 (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)/2);		//Size of capture object, height and width
+	output_v.open("output.avi", CV_FOURCC('M','P','4','V'), cap.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
+
+	//Initializing Semaphores and Signal Handler.
+	set_signal_handler();													
+	sem_create();															
+
+	//Fetching and printing Max and Min priority values for SCHED_FIFO.
+	mainpid=getpid();
+    rt_max_prio = sched_get_priority_max(SCHED_FIFO);
+    rt_min_prio = sched_get_priority_min(SCHED_FIFO);
+	cout << "MAX priority= " << rt_max_prio << endl;
+    cout << "MIN priority= " << rt_min_prio << endl;
+    
+	//Setting highest priority to main which will act as the scheduler.
+	rc = sched_getparam(mainpid, &main_param);
+    main_param.sched_priority = rt_max_prio - 10;
+    rc = sched_setscheduler(getpid(), SCHED_FIFO, &main_param);
+    if(rc < 0) 
+    {
+		perror("Cannot Set priority of Main thread.\n");
+		exit(EXIT_FAILURE);
+    }
+    
+    //Printing the set scheduled policy, scope and priorities value.
+    print_scheduler();
+	print_scope();
+
+    //Setting thread attributes
+    set_thread_attr();
+    
+	//Setting up core affinity for different services
+	//thread_core_set();
+
+	//Creatintg 4 threads for individual services.
+	thread_create();
+	
+	//note Start time to calculate average FPS.	      
+	clock_gettime(CLOCK_REALTIME, &start_time);
+
+	// Create Sequencer thread, which like a cyclic executive, is highest prio
+	cout << "STARTING SCHEDULER" << endl;
+	
+	while(1)
+	{
+		capture >> g_frame;		
+		
+		//Counting number of frames
+		frame_cnt++;
+		
+		// Pedestrian Service = RT_MAX-20 @200Hz
+		if((frame_cnt % 1) == 0)
+        {
+            sem_post(&sem_pedestrian);
+        }
+        
+        // Lane Detection Service = RT_MAX-20 @200Hz
+        if((frame_cnt % 1) == 0)
+        {
+            sem_post(&sem_lane);
+        }
+ /*       
+        // Vehicle Service = RT_MAX-20 @200Hz
+        if((frame_cnt % 1) == 0)
+        {
+            sem_post(&sem_vehicle);
+        }
+        
+        // Sign Service = RT_MAX-20 @ 200 Hz
+        if((frame_cnt % 1) == 0)
+        {
+            sem_post(&sem_sign);
+        }
+   */     
+
+
+//		detector = g_frame.clone();
+//		resize(detector, detector, Size(COLS, ROWS));
+//		for(int i=0; i<img_char.found_loc.size(); i++)
+//		{
+//			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
+//		}
+
+
+//		pyrDown(g_frame, g_frame_res);
+//		line( g_frame_res, Point(img_char.g_left[0], img_char.g_left[1] + g_frame_res.rows/2), Point(img_char.g_left[2], img_char.g_left[3] + g_frame_res.rows/2), Scalar(0,0,255), 3, CV_AA);
+//		line( g_frame_res, Point(img_char.g_right[0], img_char.g_right[1] + g_frame_res.rows/2), Point(img_char.g_right[2], img_char.g_right[3] + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);
+		//pyrDown(g_frame_res, g_frame);
+
+
+		
+		c = waitKey(5);
+		if((c == 27) || (exit_cond))
+		{
+			break;
+		}
+
+		imshow("Video", g_frame);
+		//imshow("Detector", detector);
+	}
+	
+	//Calculating Average FPS
+	fps_calc(start_time, frame_cnt, FPS_SYSTEM);
+
+	//Joining threads
+	for(int i=0;i<NUM_THREADS;i++)
+	{
+		pthread_join(threads[i], NULL);
+	}
+	
+	cout << "Exiting program" << endl;
+
+	//Destroying all Semaphores
+	sem_destroy_all();
+	destroyAllWindows();
+	
+	return 0;
 }
 
-/* Function for computing time difference between two input timespec structures and saving in third timespec structure.
- * Reference is provided to seqgen.c by Prof. Sam Siewert for delta_t function 
- * */
-int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t)
-{
-	int dt_sec=stop->tv_sec - start->tv_sec;
-	int dt_nsec=stop->tv_nsec - start->tv_nsec;
 
-	if(dt_sec >= 0)
-	{
-		if(dt_nsec >= 0)
-		{
-			delta_t->tv_sec=dt_sec;
-			delta_t->tv_nsec=dt_nsec;
-		}
-		else
-		{
-			delta_t->tv_sec=dt_sec-1;
-			delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
-		}
-	}
-	else
-	{
-		if(dt_nsec >= 0)
-		{
-			delta_t->tv_sec=dt_sec;
-			delta_t->tv_nsec=dt_nsec;
-		}
-		else
-		{
-			delta_t->tv_sec=dt_sec-1;
-			delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
-		}
-	}
-	return(1);
-}
+
 
 
 void* pedestrian_detect(void* threadp)
 {
+	
 	//Variable Declaration
 	threadParams_t* threadParams = (threadParams_t*)threadp;
 	struct timespec start_time;
@@ -70,22 +160,21 @@ void* pedestrian_detect(void* threadp)
 	hog.setSVMDetector(HOGDescriptor::getDefaultPeopleDetector());
 			
 	//Printing thread information 
-	threadcpu_info(threadParams);
+	//threadcpu_info(threadParams);
 	
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
 	
 	while(1)
 	{
-		sem_wait(&sem_main);	//semaphore from main
+		sem_wait(&sem_pedestrian);				//semaphore from main
+
 		mat = g_frame.clone();
 		cvtColor(mat, mat, CV_BGR2GRAY);
 		resize(mat, resz_mat, Size(COLS, ROWS));	//resize to 320x240
 
 		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
-		sem_post(&sem_pedestrian);
 
-//		cout << "Hello Pedestrians" << endl;
 		frame_cnt++;
 
 		if((c == 27) || (exit_cond))
@@ -95,7 +184,7 @@ void* pedestrian_detect(void* threadp)
 	}
 
 	//Calculating FPS for pedestrian detection
-//	fps_calc(start_time, frame_cnt, FPS_PEDESTRIAN);
+	fps_calc(start_time, frame_cnt, FPS_PEDESTRIAN);
 
 	pthread_exit(NULL);
 }
@@ -117,16 +206,17 @@ void* lane_follower(void* threadp)
 	int x1, x2, y1, y2;
 		
 	//Printing thread information 
-	threadcpu_info(threadParams);
+	//threadcpu_info(threadParams);
 	
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
 
 	while(1)
 	{
-		sem_wait(&sem_main);
-		src = g_frame.clone();
+		sem_wait(&sem_lane);
 	
+	
+		src = g_frame.clone();
 		//Preprocess frames
 		src_half = preprocess(src);		
 		
@@ -188,7 +278,6 @@ void* lane_follower(void* threadp)
 
 
 		frame_cnt++;
-		sem_post(&sem_lane);
 
 		if((c == 27) || (exit_cond))
 		{
@@ -198,7 +287,7 @@ void* lane_follower(void* threadp)
 	}
 	
 	//Calculating FPS for lane detection
-//	fps_calc(start_time, frame_cnt, FPS_LANE);
+	fps_calc(start_time, frame_cnt, FPS_LANE);
 	
 	pthread_exit(NULL);
 
@@ -213,15 +302,18 @@ void* sign_recog(void* threadp)
 	int frame_cnt = 0;
 		
 	//Printing thread information 
-	threadcpu_info(threadParams);
+	//threadcpu_info(threadParams);
 	
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
 
 
-	for(int i=0; i<250; i++)
+	while(1)
 	{
-		i++;
+		sem_wait(&sem_sign);
+
+		frame_cnt++;
+
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -229,7 +321,7 @@ void* sign_recog(void* threadp)
 	}
 	
 	//Calculating FPS for sign detection
-//	fps_calc(start_time, frame_cnt, FPS_SIGN);
+	fps_calc(start_time, frame_cnt, FPS_SIGN);
 
 	pthread_exit(NULL);
 
@@ -242,16 +334,20 @@ void* vehicle_detect(void* threadp)
 	threadParams_t* threadParams = (threadParams_t*)threadp;
 	struct timespec start_time;
 	int frame_cnt = 0;
+	
 		
 	//Printing thread information 
-	threadcpu_info(threadParams);
+	//threadcpu_info(threadParams);
 	
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
 
-	for(int i=0; i<250; i++)
+	while(1)
 	{
-		i++;
+		sem_wait(&sem_vehicle);
+
+		frame_cnt++;
+
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -259,106 +355,13 @@ void* vehicle_detect(void* threadp)
 	}
 	
 	//Calculating FPS for sign detection
-//	fps_calc(start_time, frame_cnt, FPS_VEHICLE);
+	fps_calc(start_time, frame_cnt, FPS_VEHICLE);
 
 	pthread_exit(NULL);
 
 }
 
-int main(int argc, char** argv)
-{
-	int frame_cnt = 0;
-	struct timespec start_time;
-	exit_cond = false;
-	Mat detector;
-	
-	if(argc < 2)
-	{
-		cout << endl << "Usage: ./smart_car input_vdeo_file" << endl;
-		cout << "Exiting Program";
-		exit(EXIT_FAILURE);
-	}
 
-	//Declaring VideoCapture and VideoWriter objects to read and write videos
-	VideoCapture capture(argv[1]);
-//	VideoWriter output_v;
-//	Size size = Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH)/2,
-//			 (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)/2);		//Size of capture object, height and width
-//	output_v.open("output.avi", CV_FOURCC('M','P','4','V'), cap.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
-
-	set_signal_handler();
-
-	//Initializing Semaphores
-	sem_create();
-
-	//Setting up core affinity for different services
-	thread_core_set();
-
-	//Creatintg 4 threads for individual services.
-	thread_create();
-		      
-	clock_gettime(CLOCK_REALTIME, &start_time);
-
-	while(1)
-	{
-		capture >> g_frame;
-
-		//Post semaphore 4 times, once for each of the 4 threads
-		sem_post(&sem_main);
-		sem_post(&sem_main);
-		//sem_post(&sem_main);
-		//sem_post(&sem_main);
-		
-		
-		//Counting number of frames
-		frame_cnt++;
-		
-		sem_wait(&sem_pedestrian);
-		sem_wait(&sem_lane);
-		//sem_wait(&sem_vehicle);
-		//sem_wait(&sem_sign);
-
-		detector = g_frame.clone();
-		resize(detector, detector, Size(COLS, ROWS));
-		for(int i=0; i<img_char.found_loc.size(); i++)
-		{
-			rectangle(detector, img_char.found_loc[i], (0, 0, 255), 4);
-		}
-
-
-//		pyrDown(g_frame, g_frame_res);
-//		line( g_frame_res, Point(img_char.g_left[0], img_char.g_left[1] + g_frame_res.rows/2), Point(img_char.g_left[2], img_char.g_left[3] + g_frame_res.rows/2), Scalar(0,0,255), 3, CV_AA);
-//		line( g_frame_res, Point(img_char.g_right[0], img_char.g_right[1] + g_frame_res.rows/2), Point(img_char.g_right[2], img_char.g_right[3] + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);
-		//pyrDown(g_frame_res, g_frame);
-
-
-		
-		c = waitKey(5);
-		if((c == 27) || (exit_cond))
-		{
-			break;
-		}
-
-		imshow("Video", g_frame);
-		imshow("Detector", detector);
-	}
-	
-	//Calculating Average FPS
-	fps_calc(start_time, frame_cnt, FPS_SYSTEM);
-
-	//Joining threads
-	for(int i=0;i<NUM_THREADS;i++)
-	{
-		pthread_join(threads[i], NULL);
-	}
-	
-	cout << "Exiting program" << endl;
-
-	//Destroying all Semaphores
-	sem_destroy_all();
-	
-	return 0;
-}
 
 
 /**
@@ -434,21 +437,29 @@ void thread_core_set(void)
  */
 void thread_create(void)
 {
+
 	//Pedestrian Detection Thread
+	rt_param[0].sched_priority=rt_max_prio-20;
+    pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
 	pthread_create(&threads[PED_DETECT_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     		// use default attributes
 			pedestrian_detect, 						// thread function entry point
 			(void *)&(threadParams[PED_DETECT_TH]) 				// parameters to pass in
 		      );
 
+
 	//Lane Detection Thread
+	rt_param[1].sched_priority=rt_max_prio-20;
+    pthread_attr_setschedparam(&rt_sched_attr[1], &rt_param[1]);
 	pthread_create(&threads[LANE_FOLLOW_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[LANE_FOLLOW_TH]),     		// use default attributes
 			lane_follower, 							// thread function entry point
 			(void *)&(threadParams[LANE_FOLLOW_TH]) 			// parameters to pass in
 		      );
-
+/*
 	//Sign Detection Thread
+	rt_param[2].sched_priority=rt_max_prio-20;
+    pthread_attr_setschedparam(&rt_sched_attr[2], &rt_param[2]);
 	pthread_create(&threads[SIGN_RECOG_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[SIGN_RECOG_TH]),     		// use default attributes
 			sign_recog, 							// thread function entry point
@@ -456,12 +467,14 @@ void thread_create(void)
 		      );
 
 	//Vehicle Detection Thread
+	rt_param[3].sched_priority=rt_max_prio-20;
+    pthread_attr_setschedparam(&rt_sched_attr[3], &rt_param[3]);
 	pthread_create(&threads[VEH_DETECT_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[VEH_DETECT_TH]),     		// use default attributes
 			vehicle_detect, 						// thread function entry point
 			(void *)&(threadParams[VEH_DETECT_TH]) 				// parameters to pass in
 		      );
-
+*/
 }
 
 
@@ -484,8 +497,31 @@ void threadcpu_info(threadParams_t* threadParams)
 			cout << " CPU-" << i;
 		}
 	}
+	
 	cout << " with PID = " << syscall(SYS_gettid) << endl;
 	
+}
+
+
+
+void set_thread_attr(void)
+{
+	int i, rc;
+	
+	for(i=0; i < NUM_THREADS; i++)
+    {
+
+      rc=pthread_attr_init(&rt_sched_attr[i]);
+      rc=pthread_attr_setinheritsched(&rt_sched_attr[i], PTHREAD_EXPLICIT_SCHED);
+      rc=pthread_attr_setschedpolicy(&rt_sched_attr[i], SCHED_FIFO);
+      //rc=pthread_attr_setaffinity_np(&rt_sched_attr[i], sizeof(cpu_set_t), &threadcpu);
+	  pthread_attr_setscope(&rt_sched_attr[i], PTHREAD_SCOPE_SYSTEM);
+      
+	  rt_param[i].sched_priority=rt_max_prio-20;
+      pthread_attr_setschedparam(&rt_sched_attr[i], &rt_param[i]);
+
+      threadParams[i].threadIdx=i;
+    }
 }
 
 
@@ -508,13 +544,14 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
 			cout << endl << "OVERALL FPS:" << endl;
-			cout << "Number of frames: "<< frame_cnt << endl;
-			cout << "Duration: "<< diff_time.tv_sec << endl;
-			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
-			sem_post(&sem_main);
-			sem_post(&sem_main);
-			sem_post(&sem_main);
-			sem_post(&sem_main);
+			cout << "OVERALL Number of frames: "<< frame_cnt << endl;
+			cout << "OVERALL Duration: "<< diff_time.tv_sec << endl;
+			cout << "OVERALL Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			sem_post(&sem_pedestrian);
+			sem_post(&sem_lane);
+			sem_post(&sem_vehicle);
+			sem_post(&sem_sign);
+
 			break;
 		}
 
@@ -523,9 +560,9 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
 			cout << endl << "PEDESTRIAN FPS:" << endl;
-			cout << "Number of frames: "<< frame_cnt << endl;
-			cout << "Duration: "<< diff_time.tv_sec << endl;
-			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			cout << "PEDESTRIAN Number of frames: "<< frame_cnt << endl;
+			cout << "PEDESTRIAN Duration: "<< diff_time.tv_sec << endl;
+			cout << "PEDESTRIAN Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
 			break;
 		}
 		
@@ -534,9 +571,9 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
 			cout << endl << "LANE FPS:" << endl;
-			cout << "Number of frames: "<< frame_cnt << endl;
-			cout << "Duration: "<< diff_time.tv_sec << endl;
-			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			cout << "LANE Number of frames: "<< frame_cnt << endl;
+			cout << "LANE Duration: "<< diff_time.tv_sec << endl;
+			cout << "LANE Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
 			break;
 		}
 		
@@ -545,9 +582,9 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
 			cout << endl << "VEHICLE FPS:" << endl;
-			cout << "Number of frames: "<< frame_cnt << endl;
-			cout << "Duration: "<< diff_time.tv_sec << endl;
-			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			cout << "VEHICLE Number of frames: "<< frame_cnt << endl;
+			cout << "VEHICLE Duration: "<< diff_time.tv_sec << endl;
+			cout << "VEHICLE Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
 			break;
 		}
 		
@@ -556,9 +593,9 @@ void fps_calc(struct timespec start_time, int frame_cnt, uint8_t fps_thread)
 			clock_gettime(CLOCK_REALTIME, &stop_time);
 			delta_t(&stop_time, &start_time, &diff_time);		//Obtain time difference
 			cout << endl << "SIGN FPS:" << endl;
-			cout << "Number of frames: "<< frame_cnt << endl;
-			cout << "Duration: "<< diff_time.tv_sec << endl;
-			cout << "Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
+			cout << "SIGN Number of frames: "<< frame_cnt << endl;
+			cout << "SIGN Duration: "<< diff_time.tv_sec << endl;
+			cout << "SIGN Average FPS: " << (frame_cnt/diff_time.tv_sec) << endl;
 			break;
 		}
 	}
@@ -767,4 +804,106 @@ void process_lanes(vector<Vec4i> lane, int side)
 	}		
 //	line( g_frame, Point(x1, y1 + g_frame.cols/2), Point(x2, y2 + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);		
 		
+}
+
+void print_scope(void)
+{
+	int scope;
+	
+    pthread_attr_getscope(&main_attr, &scope);
+    if(scope == PTHREAD_SCOPE_SYSTEM)
+    {
+		cout << "PTHREAD SCOPE SYSTEM" << endl;
+    }
+    else if (scope == PTHREAD_SCOPE_PROCESS)
+    {
+		cout << "PTHREAD SCOPE PROCESS" << endl;
+    }
+    else
+    {
+		cout << "PTHREAD SCOPE UNKNOWN" << endl;
+	}
+}
+
+
+void print_scheduler(void)
+{
+   int schedType;
+
+   schedType = sched_getscheduler(getpid());
+
+   switch(schedType)
+   {
+       case SCHED_FIFO:
+           cout << "Pthread Policy is SCHED_FIFO" << endl;
+           break;
+       case SCHED_OTHER:
+           cout << "Pthread Policy is SCHED_OTHER" << endl;
+           exit(EXIT_FAILURE);
+         break;
+       case SCHED_RR:
+           cout << "Pthread Policy is SCHED_RR" << endl;
+           exit(EXIT_FAILURE);
+           break;
+       default:
+           cout << "Pthread Policy is UNKNOWN" << endl;
+           exit(EXIT_FAILURE);
+   }
+}
+
+
+void signal_handler(int signo, siginfo_t *info, void *extra)
+{
+	exit_cond = true;
+}
+
+void set_signal_handler(void)
+{
+	struct sigaction action;
+
+	action.sa_flags = SA_SIGINFO;
+	action.sa_sigaction = signal_handler;
+
+	if(sigaction(SIGINT, &action, NULL) == -1)
+	{
+		printf("Error calling signal handler\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+/* Function for computing time difference between two input timespec structures and saving in third timespec structure.
+ * Reference is provided to seqgen.c by Prof. Sam Siewert for delta_t function 
+ * */
+int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t)
+{
+	int dt_sec=stop->tv_sec - start->tv_sec;
+	int dt_nsec=stop->tv_nsec - start->tv_nsec;
+
+	if(dt_sec >= 0)
+	{
+		if(dt_nsec >= 0)
+		{
+			delta_t->tv_sec=dt_sec;
+			delta_t->tv_nsec=dt_nsec;
+		}
+		else
+		{
+			delta_t->tv_sec=dt_sec-1;
+			delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
+		}
+	}
+	else
+	{
+		if(dt_nsec >= 0)
+		{
+			delta_t->tv_sec=dt_sec;
+			delta_t->tv_nsec=dt_nsec;
+		}
+		else
+		{
+			delta_t->tv_sec=dt_sec-1;
+			delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
+		}
+	}
+	return(1);
 }

@@ -71,9 +71,15 @@ struct img_cooordinates
 	Vec4i g_right;
 } img_char;
 
+
+//Variable Declarations
 pthread_t threads[NUM_THREADS];
 threadParams_t threadParams[NUM_THREADS];
 pthread_attr_t rt_sched_attr[NUM_THREADS];
+struct sched_param rt_param[NUM_THREADS];
+int rt_max_prio, rt_min_prio;
+struct sched_param main_param;
+pthread_attr_t main_attr;
 
 bool exit_cond;
 char c, output_frame[40];
@@ -88,7 +94,16 @@ void thread_create(void);
 void threadcpu_info(threadParams_t* threadParams);
 void thread_core_set(void);
 void fps_calc(struct timespec start, int frame_cnt, uint8_t fps_thread);
-
+void set_thread_attr(void);
+void print_scheduler(void);
+void* pedestrian_detect(void* threadp);
+void* lane_follower(void* threadp);
+void* sign_recog(void* threadp);
+void* vehicle_detect(void* threadp);
+int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t);
+void signal_handler(int signo, siginfo_t *info, void *extra);
+void set_signal_handler(void);
+void print_scope(void);
 
 //Functions related to lane detect. Copy these in master.
 Mat preprocess(Mat src);
