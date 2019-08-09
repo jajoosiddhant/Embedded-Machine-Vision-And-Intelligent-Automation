@@ -78,13 +78,9 @@ typedef struct
 
 struct img_cooordinates
 {
-<<<<<<< HEAD
-	vector<Rect> found_loc;
 	vector<Rect> traffic;
-=======
 	vector<Rect> found_loc;				//Rectangle Coordinates for pedestrian
 	vector<Rect> vehicle_loc;				//Rectangle Coordinates for Vehicle
->>>>>>> 9479333665100c176f4b01cb250b4ea96c580464
 	Vec4i g_left;
 	Vec4i g_right;
 } img_char;

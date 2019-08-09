@@ -1,7 +1,4 @@
-
-
 #include "main.h"
-
 
 int main(int argc, char** argv)
 {
@@ -16,6 +13,7 @@ int main(int argc, char** argv)
 	
 	Point ped_rect[2];
 	Point vehicle_rect[2];
+	Point sign_rect[2];
 	
 	if(argc < 2)
 	{
@@ -87,31 +85,31 @@ int main(int argc, char** argv)
 		
 		//Counting number of frames
 		frame_cnt++;
-	/*	
+		
 		// Pedestrian Service = RT_MAX-20 @200Hz
-		if((frame_cnt % 2) == 0)
+		if((frame_cnt % 3) == 0)
 		{
 			sem_post(&sem_pedestrian);
 		}
 
 		// Lane Detection Service = RT_MAX-20 @200Hz
-		if((frame_cnt % 1) == 0)
+		if((frame_cnt % 2) == 0)
 		{
 			sem_post(&sem_lane);
 		}
-	*/       
+	       
 		// Vehicle Service = RT_MAX-20 @200Hz
-		if((frame_cnt % 1) == 0)
+		if((frame_cnt % 2) == 0)
 		{
 			sem_post(&sem_vehicle);
 		}
-	/*
+	
 		// Sign Service = RT_MAX-20 @ 200 Hz
-		if((frame_cnt % 1) == 0)
+		if((frame_cnt % 4) == 0)
 		{
 			sem_post(&sem_sign);
 		}
-    */    
+        
 		if(flag)
 		{
 			sleep(1);
@@ -122,7 +120,7 @@ int main(int argc, char** argv)
 		resize(detector, detector, Size(COLS*2, ROWS*2));
 //		pyrDown(detector, detector);
 	
-/*	
+	
 		//Add mutex for pedestrian here
 		mute_ped.lock();
 		for(int i=0; i<img_char.found_loc.size(); i++)
@@ -131,16 +129,16 @@ int main(int argc, char** argv)
 			ped_rect[0].y = (img_char.found_loc[i].y)*2;
 			ped_rect[1].x = (img_char.found_loc[i].x + img_char.found_loc[i].width)*2;
 			ped_rect[1].y = (img_char.found_loc[i].y + img_char.found_loc[i].height)*2;
-			rectangle(detector, ped_rect[0], ped_rect[1], (0, 0, 255), 4);
+			rectangle(detector, ped_rect[0], ped_rect[1], CV_RGB(255, 255, 255), 4);
 		}
-		mute_ped.lock();
+		mute_ped.unlock();
 		
 		mute_lane.lock();
 		//Add mutex for line here
-		line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), Scalar(0,0,255), 3, CV_AA);
-		line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), Scalar(0,0,255), 3, CV_AA);
+		line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
+		line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
 		mute_lane.unlock();
-*/
+
 
 		mute_vehicle.lock();
 		for(int i=0; i<img_char.vehicle_loc.size(); i++)
@@ -149,19 +147,26 @@ int main(int argc, char** argv)
 			vehicle_rect[0].y = img_char.vehicle_loc[i].y + 180;
 			vehicle_rect[1].x = img_char.vehicle_loc[i].x + img_char.vehicle_loc[i].width;
 			vehicle_rect[1].y = img_char.vehicle_loc[i].y + img_char.vehicle_loc[i].height + 180;
-			rectangle(detector, vehicle_rect[0], vehicle_rect[1], CV_RGB(255, 0, 0));
+			rectangle(detector, vehicle_rect[0], vehicle_rect[1], CV_RGB(0, 0, 255));
 		}
 		mute_vehicle.unlock();
 		
+		mute_sign.lock();
+		for(int i=0; i<img_char.traffic.size(); i++)
+		{
+			sign_rect[0].x = (img_char.traffic[i].x)*2;
+			sign_rect[0].y = (img_char.traffic[i].y)*2;
+			sign_rect[1].x = (img_char.traffic[i].x + img_char.traffic[i].width)*2;
+			sign_rect[1].y = (img_char.traffic[i].y + img_char.traffic[i].height)*2;
+			rectangle(detector, sign_rect[0], sign_rect[1], CV_RGB(0, 255, 0));
+		}
+		mute_sign.unlock();
+
 //		imshow("Video", g_frame);
 		imshow("Detector", detector);
 		output_v.write(detector);
 
-<<<<<<< HEAD
-		c = waitKey(10);
-=======
-		c = waitKey(15);
->>>>>>> 9479333665100c176f4b01cb250b4ea96c580464
+		c = waitKey(5);
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -346,10 +351,10 @@ void* sign_recog(void* threadp)
 		
 	Mat mat, resz_mat;
 	CascadeClassifier cascade_traffic;
-	cascade_traffic.load("./traffic_light.xml");
+	cascade_traffic.load("./cars.xml");
 	
 	//Printing thread information 
-	threadcpu_info(threadParams);
+	//threadcpu_info(threadParams);
 	
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
@@ -360,14 +365,12 @@ void* sign_recog(void* threadp)
 		sem_wait(&sem_sign);
 		mat = g_frame.clone();
 		cvtColor(mat, mat, CV_BGR2GRAY);
-		resize(mat, resz_mat, Size(COLS/2, ROWS/2));
+		resize(mat, resz_mat, Size(COLS, ROWS));
 		equalizeHist(resz_mat, resz_mat);
 
-//		cascade_traffic.detectMultiScale(resz_mat, img_char.traffic, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(8, 8), Size(16, 16));
-
-		frame_cnt++;
-
-//		cout << "Hello traffic" << endl;
+		mute_sign.lock();
+		cascade_traffic.detectMultiScale(resz_mat, img_char.traffic, 1.05, 2, 0 | CASCADE_SCALE_IMAGE, Size(16, 16), Size(32, 32));
+		mute_sign.unlock();
 
 		frame_cnt++;
 
@@ -396,7 +399,7 @@ void* vehicle_detect(void* threadp)
 	
 	//Printing thread information 
 	//threadcpu_info(threadParams);
-	
+
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
 
@@ -505,7 +508,7 @@ void thread_core_set(void)
  */
 void thread_create(void)
 {
-/*
+
 	//Pedestrian Detection Thread
 	rt_param[0].sched_priority=rt_max_prio-20;
 	pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
@@ -533,7 +536,7 @@ void thread_create(void)
 			sign_recog, 							// thread function entry point
 			(void *)&(threadParams[SIGN_RECOG_TH]) 				// parameters to pass in
 		      );
-*/
+
 	//Vehicle Detection Thread
 	rt_param[3].sched_priority=rt_max_prio-20;
 	pthread_attr_setschedparam(&rt_sched_attr[3], &rt_param[3]);
