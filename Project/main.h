@@ -10,6 +10,7 @@
 #include <semaphore.h>
 #include <sys/syscall.h>
 #include <X11/Xlib.h>
+#include <mutex>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -77,7 +78,8 @@ typedef struct
 
 struct img_cooordinates
 {
-	vector<Rect> found_loc;
+	vector<Rect> found_loc;				//Rectangle Coordinates for pedestrian
+	vector<Rect> vehicle_loc;				//Rectangle Coordinates for Vehicle
 	Vec4i g_left;
 	Vec4i g_right;
 } img_char;
@@ -96,7 +98,11 @@ bool exit_cond;
 char c, output_frame[40];
 Mat g_frame;
 sem_t sem_main, sem_pedestrian, sem_lane, sem_vehicle, sem_sign;
+mutex mute_ped, mute_lane, mute_vehicle, mute_sign;
 
+//For Vehicle Detection
+CascadeClassifier vehicle_cascade;
+const string vehicle_cascade_name("cars.xml");
 
 //Function Declarations
 void sem_create(void);
