@@ -12,9 +12,10 @@ int main(int argc, char** argv)
 	Mat detector;
 	int rc;
 	pid_t mainpid;
-
+	int flag = 1;
+	
 	Point ped_rect[2];
-
+	Point vehicle_rect[2];
 	
 	if(argc < 2)
 	{
@@ -30,6 +31,15 @@ int main(int argc, char** argv)
 //	Size size = Size((int) capture.get(CV_CAP_PROP_FRAME_WIDTH),
 //			 (int) capture.get(CV_CAP_PROP_FRAME_HEIGHT));		//Size of capture object, height and width
 	output_v.open("output.mp4", CV_FOURCC('M','P','4','V'), capture.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
+
+
+	//Load Vehicle xml
+	if( !vehicle_cascade.load(vehicle_cascade_name) )
+    {
+        cout << "Error loading Vehicle cascade\n";
+        exit(EXIT_FAILURE);
+    }
+
 
 	//Initializing Semaphores and Signal Handler.
 	set_signal_handler();													
@@ -77,7 +87,7 @@ int main(int argc, char** argv)
 		
 		//Counting number of frames
 		frame_cnt++;
-		
+	/*	
 		// Pedestrian Service = RT_MAX-20 @200Hz
 		if((frame_cnt % 2) == 0)
 		{
@@ -89,23 +99,32 @@ int main(int argc, char** argv)
 		{
 			sem_post(&sem_lane);
 		}
-		/*       
+	*/       
 		// Vehicle Service = RT_MAX-20 @200Hz
 		if((frame_cnt % 1) == 0)
 		{
 			sem_post(&sem_vehicle);
 		}
-
+	/*
 		// Sign Service = RT_MAX-20 @ 200 Hz
 		if((frame_cnt % 1) == 0)
 		{
 			sem_post(&sem_sign);
 		}
-   */     
-
+    */    
+		if(flag)
+		{
+			sleep(1);
+			flag = 0;
+		}
+		
 		detector = g_frame.clone();
 		resize(detector, detector, Size(COLS*2, ROWS*2));
 //		pyrDown(detector, detector);
+	
+/*	
+		//Add mutex for pedestrian here
+		mute_ped.lock();
 		for(int i=0; i<img_char.found_loc.size(); i++)
 		{
 			ped_rect[0].x = (img_char.found_loc[i].x)*2;
@@ -114,15 +133,35 @@ int main(int argc, char** argv)
 			ped_rect[1].y = (img_char.found_loc[i].y + img_char.found_loc[i].height)*2;
 			rectangle(detector, ped_rect[0], ped_rect[1], (0, 0, 255), 4);
 		}
-
+		mute_ped.lock();
+		
+		mute_lane.lock();
+		//Add mutex for line here
 		line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), Scalar(0,0,255), 3, CV_AA);
 		line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), Scalar(0,0,255), 3, CV_AA);
+		mute_lane.unlock();
+*/
 
+		mute_vehicle.lock();
+		for(int i=0; i<img_char.vehicle_loc.size(); i++)
+		{
+			vehicle_rect[0].x = img_char.vehicle_loc[i].x;
+			vehicle_rect[0].y = img_char.vehicle_loc[i].y + 180;
+			vehicle_rect[1].x = img_char.vehicle_loc[i].x + img_char.vehicle_loc[i].width;
+			vehicle_rect[1].y = img_char.vehicle_loc[i].y + img_char.vehicle_loc[i].height + 180;
+			rectangle(detector, vehicle_rect[0], vehicle_rect[1], CV_RGB(255, 0, 0));
+		}
+		mute_vehicle.unlock();
+		
 //		imshow("Video", g_frame);
 		imshow("Detector", detector);
 		output_v.write(detector);
 
+<<<<<<< HEAD
 		c = waitKey(10);
+=======
+		c = waitKey(15);
+>>>>>>> 9479333665100c176f4b01cb250b4ea96c580464
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -175,8 +214,10 @@ void* pedestrian_detect(void* threadp)
 		cvtColor(mat, mat, CV_BGR2GRAY);
 		resize(mat, resz_mat, Size(COLS, ROWS));	//resize to 320x240
 
+		mute_ped.lock();
 		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
-
+		mute_ped.unlock();
+		
 		frame_cnt++;
 
 		if((c == 27) || (exit_cond))
@@ -350,8 +391,9 @@ void* vehicle_detect(void* threadp)
 	threadParams_t* threadParams = (threadParams_t*)threadp;
 	struct timespec start_time;
 	int frame_cnt = 0;
+	Mat src, src_half, gray, blur;
+
 	
-		
 	//Printing thread information 
 	//threadcpu_info(threadParams);
 	
@@ -361,6 +403,16 @@ void* vehicle_detect(void* threadp)
 	while(1)
 	{
 		sem_wait(&sem_vehicle);
+
+		src = g_frame.clone();
+		
+		src_half = preprocess(src);
+		cvtColor(src_half, gray, CV_RGB2GRAY);
+		GaussianBlur( gray, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
+
+		mute_vehicle.lock();
+		vehicle_cascade.detectMultiScale(blur, img_char.vehicle_loc, 1.2, 3, 0/*, Size(30, 30)*/);
+		mute_vehicle.unlock();
 
 		frame_cnt++;
 
@@ -453,7 +505,7 @@ void thread_core_set(void)
  */
 void thread_create(void)
 {
-
+/*
 	//Pedestrian Detection Thread
 	rt_param[0].sched_priority=rt_max_prio-20;
 	pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
@@ -472,7 +524,7 @@ void thread_create(void)
 			lane_follower, 							// thread function entry point
 			(void *)&(threadParams[LANE_FOLLOW_TH]) 			// parameters to pass in
 		      );
-/*
+
 	//Sign Detection Thread
 	rt_param[2].sched_priority=rt_max_prio-20;
 	pthread_attr_setschedparam(&rt_sched_attr[2], &rt_param[2]);
@@ -481,7 +533,7 @@ void thread_create(void)
 			sign_recog, 							// thread function entry point
 			(void *)&(threadParams[SIGN_RECOG_TH]) 				// parameters to pass in
 		      );
-
+*/
 	//Vehicle Detection Thread
 	rt_param[3].sched_priority=rt_max_prio-20;
 	pthread_attr_setschedparam(&rt_sched_attr[3], &rt_param[3]);
@@ -490,7 +542,7 @@ void thread_create(void)
 			vehicle_detect, 						// thread function entry point
 			(void *)&(threadParams[VEH_DETECT_TH]) 				// parameters to pass in
 		      );
-*/
+
 }
 
 
@@ -783,8 +835,7 @@ Mat roi_mask(Mat src_half)
 
 void process_lanes(vector<Vec4i> lane, int side)
 {
-	Mat abcd;
-	pyrDown(g_frame, abcd);
+
 	//Reset Coordinates
 	int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
 			
@@ -805,17 +856,21 @@ void process_lanes(vector<Vec4i> lane, int side)
 			
 	if(side == LEFT)
 	{
+		mute_lane.lock();
 		img_char.g_left[0] = x1;
 		img_char.g_left[1] = y1;
 		img_char.g_left[2] = x2;
 		img_char.g_left[3] = y2;
+		mute_lane.unlock();
 	}
 	else if(side == RIGHT)
 	{
+		mute_lane.lock();
 		img_char.g_right[0] = x1;
 		img_char.g_right[1] = y1;
 		img_char.g_right[2] = x2;
 		img_char.g_right[3] = y2;
+		mute_lane.unlock();
 	}		
 		
 }
