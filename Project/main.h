@@ -20,7 +20,7 @@
 using namespace cv;
 using namespace std;
 
-//#define USING_CALTECH_VIDEO
+#define USING_CALTECH_VIDEO
 
 #ifdef USING_CALTECH_VIDEO
 #define COLS							(320)

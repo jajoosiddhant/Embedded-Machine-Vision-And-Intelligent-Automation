@@ -10,14 +10,16 @@ int main(int argc, char** argv)
 	int rc;
 	pid_t mainpid;
 	int flag = 1;
-	
+
 	Point ped_rect[2];
 	Point vehicle_rect[2];
 	Point sign_rect[2];
-	
+
+struct timespec temp_start, temp_stop, temp_diff;
+
 	if(argc < 2)
 	{
-		cout << endl << "Usage: ./smart_car input_vdeo_file" << endl;
+		cout << endl << "Usage: sudo ./smart_car input_vdeo_file" << endl;
 		cout << "Exiting Program";
 		exit(EXIT_FAILURE);
 	}
@@ -33,15 +35,20 @@ int main(int argc, char** argv)
 
 	//Load Vehicle xml
 	if( !vehicle_cascade.load(vehicle_cascade_name) )
-    {
-        cout << "Error loading Vehicle cascade\n";
-        exit(EXIT_FAILURE);
-    }
+		handle_error("Error loading vehicle cascade")
 
 
 	//Initializing Semaphores and Signal Handler.
-	set_signal_handler();													
-	sem_create();															
+	set_signal_handler();
+	sem_create();	
+
+	//Main thread affinity
+/*	cout << " Main thread has PID = " << syscall(SYS_gettid) << endl;
+	cpu_set_t main_cpu; 
+	CPU_ZERO(&main_cpu);
+	CPU_SET(0, &main_cpu);
+	sched_setaffinity(0, sizeof(main_cpu), &main_cpu);	
+*/	/********************************/
 
 	//Fetching and printing Max and Min priority values for SCHED_FIFO.
 	mainpid=getpid();
@@ -81,30 +88,31 @@ int main(int argc, char** argv)
 	
 	while(1)
 	{
+//		clock_gettime(CLOCK_REALTIME, &temp_start);	//uncomment during testing
 		capture >> g_frame;		
 		
 		//Counting number of frames
 		frame_cnt++;
 		
-		// Pedestrian Service = RT_MAX-20 @200Hz
+		// Pedestrian Service = RT_MAX-20 @10Hz
 		if((frame_cnt % 3) == 0)
 		{
 			sem_post(&sem_pedestrian);
 		}
 
-		// Lane Detection Service = RT_MAX-20 @200Hz
+		// Lane Detection Service = RT_MAX-20 @15Hz
 		if((frame_cnt % 2) == 0)
 		{
 			sem_post(&sem_lane);
 		}
 	       
-		// Vehicle Service = RT_MAX-20 @200Hz
+		// Vehicle Service = RT_MAX-20 @15Hz
 		if((frame_cnt % 2) == 0)
 		{
 			sem_post(&sem_vehicle);
 		}
 	
-		// Sign Service = RT_MAX-20 @ 200 Hz
+		// Sign Service = RT_MAX-20 @ 7.5Hz
 		if((frame_cnt % 4) == 0)
 		{
 			sem_post(&sem_sign);
@@ -119,7 +127,6 @@ int main(int argc, char** argv)
 		detector = g_frame.clone();
 		resize(detector, detector, Size(COLS*2, ROWS*2));
 //		pyrDown(detector, detector);
-	
 	
 		//Add mutex for pedestrian here
 		mute_ped.lock();
@@ -163,10 +170,14 @@ int main(int argc, char** argv)
 		mute_sign.unlock();
 
 //		imshow("Video", g_frame);
+		c = waitKey(1);
 		imshow("Detector", detector);
 		output_v.write(detector);
+//		clock_gettime(CLOCK_REALTIME, &temp_stop);	//uncomment during testing
 
-		c = waitKey(5);
+	
+//		delta_t(&temp_stop, &temp_start, &temp_diff);
+//		printf("Time elapsed in waiting: %lu nsecs\n", temp_diff.tv_nsec);	//uncomment during testing
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -351,7 +362,8 @@ void* sign_recog(void* threadp)
 		
 	Mat mat, resz_mat;
 	CascadeClassifier cascade_traffic;
-	cascade_traffic.load("./cars.xml");
+	if(!cascade_traffic.load("./traffic_light.xml"))
+		handle_error("Error loading traffic light cascade")
 	
 	//Printing thread information 
 	//threadcpu_info(threadParams);
@@ -369,7 +381,7 @@ void* sign_recog(void* threadp)
 		equalizeHist(resz_mat, resz_mat);
 
 		mute_sign.lock();
-		cascade_traffic.detectMultiScale(resz_mat, img_char.traffic, 1.05, 2, 0 | CASCADE_SCALE_IMAGE, Size(16, 16), Size(32, 32));
+		cascade_traffic.detectMultiScale(resz_mat, img_char.traffic, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(30, 30));
 		mute_sign.unlock();
 
 		frame_cnt++;
@@ -568,9 +580,7 @@ void threadcpu_info(threadParams_t* threadParams)
 			cout << " CPU-" << i;
 		}
 	}
-	
 	cout << " with PID = " << syscall(SYS_gettid) << endl;
-	
 }
 
 
