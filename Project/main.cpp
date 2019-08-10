@@ -15,7 +15,7 @@ int main(int argc, char** argv)
 	Point vehicle_rect[2];
 	Point sign_rect[2];
 
-struct timespec temp_start, temp_stop, temp_diff;
+	struct timespec temp_start, temp_stop, temp_diff;
 
 	if(argc < 2)
 	{
@@ -28,6 +28,7 @@ struct timespec temp_start, temp_stop, temp_diff;
 	VideoCapture capture(argv[1]);
 	VideoWriter output_v;
 	Size size = Size(COLS*2, ROWS*2);
+
 //	Size size = Size((int) capture.get(CV_CAP_PROP_FRAME_WIDTH),
 //			 (int) capture.get(CV_CAP_PROP_FRAME_HEIGHT));		//Size of capture object, height and width
 	output_v.open("output.mp4", CV_FOURCC('M','P','4','V'), capture.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
@@ -129,7 +130,9 @@ struct timespec temp_start, temp_stop, temp_diff;
 //		pyrDown(detector, detector);
 	
 		//Add mutex for pedestrian here
+		#ifdef USING_MUTEX
 		mute_ped.lock();
+		#endif
 		for(int i=0; i<img_char.found_loc.size(); i++)
 		{
 			ped_rect[0].x = (img_char.found_loc[i].x)*2;
@@ -138,16 +141,20 @@ struct timespec temp_start, temp_stop, temp_diff;
 			ped_rect[1].y = (img_char.found_loc[i].y + img_char.found_loc[i].height)*2;
 			rectangle(detector, ped_rect[0], ped_rect[1], CV_RGB(255, 255, 255), 4);
 		}
+		#ifdef USING_MUTEX
 		mute_ped.unlock();
 		
 		mute_lane.lock();
+		#endif
 		//Add mutex for line here
 		line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
 		line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
+		#ifdef USING_MUTEX
 		mute_lane.unlock();
 
 
 		mute_vehicle.lock();
+		#endif
 		for(int i=0; i<img_char.vehicle_loc.size(); i++)
 		{
 			vehicle_rect[0].x = img_char.vehicle_loc[i].x;
@@ -156,9 +163,11 @@ struct timespec temp_start, temp_stop, temp_diff;
 			vehicle_rect[1].y = img_char.vehicle_loc[i].y + img_char.vehicle_loc[i].height + 180;
 			rectangle(detector, vehicle_rect[0], vehicle_rect[1], CV_RGB(0, 0, 255));
 		}
+		#ifdef USING_MUTEX
 		mute_vehicle.unlock();
 		
 		mute_sign.lock();
+		#endif
 		for(int i=0; i<img_char.traffic.size(); i++)
 		{
 			sign_rect[0].x = (img_char.traffic[i].x)*2;
@@ -167,9 +176,11 @@ struct timespec temp_start, temp_stop, temp_diff;
 			sign_rect[1].y = (img_char.traffic[i].y + img_char.traffic[i].height)*2;
 			rectangle(detector, sign_rect[0], sign_rect[1], CV_RGB(0, 255, 0));
 		}
+		#ifdef USING_MUTEX
 		mute_sign.unlock();
+		#endif
 
-//		imshow("Video", g_frame);
+		imshow("Video", g_frame);
 		c = waitKey(1);
 		imshow("Detector", detector);
 		output_v.write(detector);
