@@ -43,12 +43,11 @@ struct timespec temp_start, temp_stop, temp_diff;
 	sem_create();	
 
 	//Main thread affinity
-/*	cout << " Main thread has PID = " << syscall(SYS_gettid) << endl;
+	cout << " Main thread has PID = " << syscall(SYS_gettid) << endl;
 	cpu_set_t main_cpu; 
 	CPU_ZERO(&main_cpu);
 	CPU_SET(0, &main_cpu);
 	sched_setaffinity(0, sizeof(main_cpu), &main_cpu);	
-*/	/********************************/
 
 	//Fetching and printing Max and Min priority values for SCHED_FIFO.
 	mainpid=getpid();
@@ -59,7 +58,7 @@ struct timespec temp_start, temp_stop, temp_diff;
 
 	//Setting highest priority to main which will act as the scheduler.
 	rc = sched_getparam(mainpid, &main_param);
-	main_param.sched_priority = rt_max_prio - 10;
+	main_param.sched_priority = rt_max_prio - 1;
 	rc = sched_setscheduler(getpid(), SCHED_FIFO, &main_param);
 	if(rc < 0) 
 	{
@@ -75,7 +74,7 @@ struct timespec temp_start, temp_stop, temp_diff;
 	set_thread_attr();
 
 	//Setting up core affinity for different services
-	//thread_core_set();
+	thread_core_set();
 
 	//Creatintg 4 threads for individual services.
 	thread_create();
@@ -99,19 +98,19 @@ struct timespec temp_start, temp_stop, temp_diff;
 		{
 			sem_post(&sem_pedestrian);
 		}
-
+		
 		// Lane Detection Service = RT_MAX-20 @15Hz
 		if((frame_cnt % 2) == 0)
 		{
 			sem_post(&sem_lane);
 		}
-	       
+	     
 		// Vehicle Service = RT_MAX-20 @15Hz
 		if((frame_cnt % 2) == 0)
 		{
 			sem_post(&sem_vehicle);
 		}
-	
+		
 		// Sign Service = RT_MAX-20 @ 7.5Hz
 		if((frame_cnt % 4) == 0)
 		{
@@ -126,10 +125,9 @@ struct timespec temp_start, temp_stop, temp_diff;
 		
 		detector = g_frame.clone();
 		resize(detector, detector, Size(COLS*2, ROWS*2));
-//		pyrDown(detector, detector);
 	
 		//Add mutex for pedestrian here
-		mute_ped.lock();
+//		mute_ped.lock();
 		for(int i=0; i<img_char.found_loc.size(); i++)
 		{
 			ped_rect[0].x = (img_char.found_loc[i].x)*2;
@@ -138,16 +136,16 @@ struct timespec temp_start, temp_stop, temp_diff;
 			ped_rect[1].y = (img_char.found_loc[i].y + img_char.found_loc[i].height)*2;
 			rectangle(detector, ped_rect[0], ped_rect[1], CV_RGB(255, 255, 255), 4);
 		}
-		mute_ped.unlock();
+//		mute_ped.unlock();
 		
-		mute_lane.lock();
+//		mute_lane.lock();
 		//Add mutex for line here
 		line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
 		line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
-		mute_lane.unlock();
+//		mute_lane.unlock();
 
 
-		mute_vehicle.lock();
+//		mute_vehicle.lock();
 		for(int i=0; i<img_char.vehicle_loc.size(); i++)
 		{
 			vehicle_rect[0].x = img_char.vehicle_loc[i].x;
@@ -156,9 +154,10 @@ struct timespec temp_start, temp_stop, temp_diff;
 			vehicle_rect[1].y = img_char.vehicle_loc[i].y + img_char.vehicle_loc[i].height + 180;
 			rectangle(detector, vehicle_rect[0], vehicle_rect[1], CV_RGB(0, 0, 255));
 		}
-		mute_vehicle.unlock();
-		
-		mute_sign.lock();
+//		mute_vehicle.unlock();
+
+				
+//		mute_sign.lock();
 		for(int i=0; i<img_char.traffic.size(); i++)
 		{
 			sign_rect[0].x = (img_char.traffic[i].x)*2;
@@ -167,17 +166,17 @@ struct timespec temp_start, temp_stop, temp_diff;
 			sign_rect[1].y = (img_char.traffic[i].y + img_char.traffic[i].height)*2;
 			rectangle(detector, sign_rect[0], sign_rect[1], CV_RGB(0, 255, 0));
 		}
-		mute_sign.unlock();
+//		mute_sign.unlock();
 
 //		imshow("Video", g_frame);
 		c = waitKey(1);
 		imshow("Detector", detector);
 		output_v.write(detector);
+		
 //		clock_gettime(CLOCK_REALTIME, &temp_stop);	//uncomment during testing
-
-	
 //		delta_t(&temp_stop, &temp_start, &temp_diff);
 //		printf("Time elapsed in waiting: %lu nsecs\n", temp_diff.tv_nsec);	//uncomment during testing
+		
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -217,13 +216,14 @@ void* pedestrian_detect(void* threadp)
 	hog.setSVMDetector(HOGDescriptor::getDefaultPeopleDetector());
 			
 	//Printing thread information 
-	//threadcpu_info(threadParams);
+	threadcpu_info(threadParams);
 	
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
 	
 	while(1)
 	{
+
 		sem_wait(&sem_pedestrian);				//semaphore from main
 
 		mat = g_frame.clone();
@@ -235,7 +235,8 @@ void* pedestrian_detect(void* threadp)
 		mute_ped.unlock();
 		
 		frame_cnt++;
-
+	
+		
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -259,13 +260,13 @@ void* lane_follower(void* threadp)
 	Mat src_half, contrast, mask;		
 	Mat detect_lanes, blur, edge;
 	Mat canny_roi;
-	//Mat src_res;
+
 	
 	double slope;
 	int x1, x2, y1, y2;
 		
 	//Printing thread information 
-	//threadcpu_info(threadParams);
+	threadcpu_info(threadParams);
 	
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
@@ -366,7 +367,7 @@ void* sign_recog(void* threadp)
 		handle_error("Error loading traffic light cascade")
 	
 	//Printing thread information 
-	//threadcpu_info(threadParams);
+	threadcpu_info(threadParams);
 	
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
@@ -407,10 +408,10 @@ void* vehicle_detect(void* threadp)
 	struct timespec start_time;
 	int frame_cnt = 0;
 	Mat src, src_half, gray, blur;
-
+//	struct timespec temp_start, temp_stop, temp_diff;
 	
 	//Printing thread information 
-	//threadcpu_info(threadParams);
+	threadcpu_info(threadParams);
 
 	//Note Start time to calculate FPS
    	clock_gettime(CLOCK_REALTIME, &start_time);
@@ -418,7 +419,8 @@ void* vehicle_detect(void* threadp)
 	while(1)
 	{
 		sem_wait(&sem_vehicle);
-
+		
+//		clock_gettime(CLOCK_REALTIME, &temp_start);	//uncomment during testing
 		src = g_frame.clone();
 		
 		src_half = preprocess(src);
@@ -426,11 +428,15 @@ void* vehicle_detect(void* threadp)
 		GaussianBlur( gray, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
 
 		mute_vehicle.lock();
-		vehicle_cascade.detectMultiScale(blur, img_char.vehicle_loc, 1.2, 3, 0/*, Size(30, 30)*/);
+		vehicle_cascade.detectMultiScale(blur, img_char.vehicle_loc, 1.2, 3, 0, Size(30, 30));
 		mute_vehicle.unlock();
 
 		frame_cnt++;
-
+		
+//		clock_gettime(CLOCK_REALTIME, &temp_stop);	//uncomment during testing
+//		delta_t(&temp_stop, &temp_start, &temp_diff);
+//		printf("Time elapsed in waiting: %lu nsecs\n", temp_diff.tv_nsec);	//uncomment during testing
+		
 		if((c == 27) || (exit_cond))
 		{
 			break;
@@ -481,21 +487,18 @@ void thread_core_set(void)
 	
 	cout << "This system has " << config_Processors << " processors configured and " << get_nprocs() << " processors available" << endl << endl;
 	
-	CPU_ZERO(&allcpuset);
-	for(int i=0; i < config_Processors; i++)
-	{
-		CPU_SET(i, &allcpuset);
-	}
+	
+	CPU_ZERO(&threadcpu);
+	CPU_SET(1, &threadcpu);
+	CPU_SET(2, &threadcpu);
+	CPU_SET(3, &threadcpu);
 	
 	for(int i=0; i < NUM_THREADS; i++)
 	{
-		int rc, coreid;
+		int rc;
 		
-		//Setting individual cores to individual services
-		CPU_ZERO(&threadcpu);
-		coreid=i%config_Processors;
-		cout << "Setting thread " << i << " to core " << coreid << endl;
-		CPU_SET(coreid, &threadcpu);
+		cout << "Setting thread " << i << endl;
+
 		for(int idx=0; idx<config_Processors; idx++)
 		{
 			if(CPU_ISSET(idx, &threadcpu))  
@@ -503,6 +506,7 @@ void thread_core_set(void)
 				cout << " CPU-" << idx << endl;
 			}
 		}
+
 		cout << "Launching thread " << i << endl << endl;
 
 		rc=pthread_attr_init(&rt_sched_attr[i]);
@@ -522,7 +526,7 @@ void thread_create(void)
 {
 
 	//Pedestrian Detection Thread
-	rt_param[0].sched_priority=rt_max_prio-20;
+	rt_param[0].sched_priority=rt_max_prio-2;
 	pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
 	pthread_create(&threads[PED_DETECT_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     		// use default attributes
@@ -532,7 +536,7 @@ void thread_create(void)
 
 
 	//Lane Detection Thread
-	rt_param[1].sched_priority=rt_max_prio-20;
+	rt_param[1].sched_priority=rt_max_prio-2;
 	pthread_attr_setschedparam(&rt_sched_attr[1], &rt_param[1]);
 	pthread_create(&threads[LANE_FOLLOW_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[LANE_FOLLOW_TH]),     		// use default attributes
@@ -541,7 +545,7 @@ void thread_create(void)
 		      );
 
 	//Sign Detection Thread
-	rt_param[2].sched_priority=rt_max_prio-20;
+	rt_param[2].sched_priority=rt_max_prio-2;
 	pthread_attr_setschedparam(&rt_sched_attr[2], &rt_param[2]);
 	pthread_create(&threads[SIGN_RECOG_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[SIGN_RECOG_TH]),     		// use default attributes
@@ -550,7 +554,7 @@ void thread_create(void)
 		      );
 
 	//Vehicle Detection Thread
-	rt_param[3].sched_priority=rt_max_prio-20;
+	rt_param[3].sched_priority=rt_max_prio-2;
 	pthread_attr_setschedparam(&rt_sched_attr[3], &rt_param[3]);
 	pthread_create(&threads[VEH_DETECT_TH],   					// pointer to thread descriptor
 			(pthread_attr_t*)&(rt_sched_attr[VEH_DETECT_TH]),     		// use default attributes
