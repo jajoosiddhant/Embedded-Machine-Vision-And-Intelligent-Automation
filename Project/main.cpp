@@ -222,6 +222,7 @@ void* pedestrian_detect(void* threadp)
 	threadParams_t* threadParams = (threadParams_t*)threadp;
 	struct timespec start_time;
 	int frame_cnt = 0;
+	vector<rect> found_loc;
 
 	Mat mat, resz_mat;
 	HOGDescriptor hog;
@@ -241,8 +242,11 @@ void* pedestrian_detect(void* threadp)
 		cvtColor(mat, mat, CV_BGR2GRAY);
 		resize(mat, resz_mat, Size(COLS, ROWS));	//resize to 320x240
 
+		hog.detectMultiScale(resz_mat, found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
+
 		mute_ped.lock();
-		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
+		img_char.found_loc.clear();
+		img_char.found_loc = found_loc;
 		mute_ped.unlock();
 		
 		frame_cnt++;
@@ -370,6 +374,7 @@ void* sign_recog(void* threadp)
 	threadParams_t* threadParams = (threadParams_t*)threadp;
 	struct timespec start_time;
 	int frame_cnt = 0;
+	vector<Rect> traffic;
 		
 	Mat mat, resz_mat;
 	CascadeClassifier cascade_traffic;
@@ -391,8 +396,11 @@ void* sign_recog(void* threadp)
 		resize(mat, resz_mat, Size(COLS, ROWS));
 		equalizeHist(resz_mat, resz_mat);
 
+		cascade_traffic.detectMultiScale(resz_mat, traffic, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(30, 30));
+
 		mute_sign.lock();
-		cascade_traffic.detectMultiScale(resz_mat, img_char.traffic, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(30, 30));
+		img_char.traffic.clear();
+		img_char.traffic_loc = traffic;
 		mute_sign.unlock();
 
 		frame_cnt++;
@@ -418,6 +426,7 @@ void* vehicle_detect(void* threadp)
 	struct timespec start_time;
 	int frame_cnt = 0;
 	Mat src, src_half, gray, blur;
+	vector<Rect> vehicle_loc;
 
 	
 	//Printing thread information 
@@ -436,8 +445,11 @@ void* vehicle_detect(void* threadp)
 		cvtColor(src_half, gray, CV_RGB2GRAY);
 		GaussianBlur( gray, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
 
+		vehicle_cascade.detectMultiScale(blur, vehicle_loc, 1.2, 3, 0/*, Size(30, 30)*/);
+		
 		mute_vehicle.lock();
-		vehicle_cascade.detectMultiScale(blur, img_char.vehicle_loc, 1.2, 3, 0/*, Size(30, 30)*/);
+		img_char.vehicle_loc.clear();
+		img_char.vehicle_loc = vehicle_loc;
 		mute_vehicle.unlock();
 
 		frame_cnt++;
@@ -873,6 +885,15 @@ void process_lanes(vector<Vec4i> lane, int side)
 		y2 += c[3]; 
 	}
 	
+	if(!lane.size())
+	{
+		mute_lane.lock();
+		img_char.g_left.clear();
+		img_char.g_right.clear();
+		mute_lane.unlock();
+		return;
+	}
+
 	x1 = x1/lane.size();
 	y1 = y1/lane.size();
 	x2 = x2/lane.size();
@@ -881,6 +902,7 @@ void process_lanes(vector<Vec4i> lane, int side)
 	if(side == LEFT)
 	{
 		mute_lane.lock();
+		img_char.g_left.clear();
 		img_char.g_left[0] = x1;
 		img_char.g_left[1] = y1;
 		img_char.g_left[2] = x2;
@@ -890,6 +912,7 @@ void process_lanes(vector<Vec4i> lane, int side)
 	else if(side == RIGHT)
 	{
 		mute_lane.lock();
+		img_char.g_right.clear();
 		img_char.g_right[0] = x1;
 		img_char.g_right[1] = y1;
 		img_char.g_right[2] = x2;
