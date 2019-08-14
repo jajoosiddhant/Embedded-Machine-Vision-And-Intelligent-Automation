@@ -59,9 +59,9 @@ using namespace std;
 #define CANNY_THRESHOLD_2					(120)
 
 //Hough Lines Threshold Values
-#define	HOUGH_THRESHOLD						(40)
+#define	HOUGH_THRESHOLD						(20)
 #define	HOUGH_MIN_LINE_LENGTH					(10)
-#define	HOUGH_MAX_LINE_GAP					(80)
+#define	HOUGH_MAX_LINE_GAP					(50)
 
 
 #define handle_error(msg) \
