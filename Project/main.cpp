@@ -819,12 +819,12 @@ Mat create_mask(Mat src_half)
 	
 	//Convert Original Image to HLS
 	cvtColor(src_half, hls, COLOR_BGR2HLS);								//Shows white as yellow.
-	//imshow("HLS", hls);
+	imshow("HLS", hls);
 	
 	//Lower value of Saturation makes changes. i.e middle one. Reducing the lower saturation value includes yellow lanes and background as well	
-	//If want to incorpotate yellow lines change lower threshold of saturation to 70 or keep 100.
-	inRange(hls, Scalar(20,100,0), Scalar(40,255,50), white);				//brightness can be 0 to 50 also.	
-	//imshow("HLS white", white);	
+	//If want to incorpotate yellow lines change lower threshold of saturation to 70 or keep 100 but this also includes noise so do not reduce the middle lower value
+	inRange(hls, Scalar(20,115,10), Scalar(40,255,40), white);					//Lower saturation can be 118.	
+	imshow("HLS white", white);									//Shows white as yellow.
 
 	//Convert Original Image to HSV
 	cvtColor(src_half, hsv, COLOR_BGR2HSV);								//Shows yellow as yellow.
