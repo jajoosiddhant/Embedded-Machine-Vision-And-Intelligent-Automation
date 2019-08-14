@@ -11,18 +11,20 @@ int main(int argc, char** argv)
 	pid_t mainpid;
 	int flag = 1;
 	int opt;
+	bool options = false;
 
 	Point ped_rect[2];
 	Point vehicle_rect[2];
 	Point sign_rect[2];
 
-struct timespec temp_start, temp_stop, temp_diff;
+	struct timespec temp_start, temp_stop, temp_diff;
 
-	if(argc < 2)
+	if(argc < 4)
 		help();
 
 	while((opt = getopt(argc, argv, "aplvs")) != -1)
 	{
+		options = true;
 		switch(opt)
 		{
 			case 'a':
@@ -45,12 +47,15 @@ struct timespec temp_start, temp_stop, temp_diff;
 				break;
 			default:
 				help();
+				break;
 		}
 		if(optind >= argc)
 		{
 			help();
 		}
 	}
+	if(!options)
+		help();
 
 	//Declaring VideoCapture and VideoWriter objects to read and write videos
 	VideoCapture capture(argv[optind]);
@@ -1055,7 +1060,7 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
 
 void help(void)
 {
-	cout << endl << "Usage: sudo ./smart_car detection_type_1 detection_type_2 ....detection_type_4 input_video_file.mp4 output_video_file.mp4";
+	cout << endl << "Usage: sudo ./smart_car detection_type_1 detection_type_2 ....detection_type_4 input_video_file output_video_file.mp4";
 	cout << endl << "-a for all detection tasks";
 	cout << endl << "-p for pedestrian detection";
 	cout << endl << "-l for lane following";
