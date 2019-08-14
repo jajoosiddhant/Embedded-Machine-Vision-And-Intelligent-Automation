@@ -95,6 +95,7 @@ int rt_max_prio, rt_min_prio;
 struct sched_param main_param;
 pthread_attr_t main_attr;
 
+int enable[4] = {0};
 bool exit_cond;
 char c, output_frame[40];
 Mat g_frame;
@@ -122,6 +123,7 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
 void signal_handler(int signo, siginfo_t *info, void *extra);
 void set_signal_handler(void);
 void print_scope(void);
+void help(void);
 
 //Functions related to lane detect. Copy these in master.
 Mat preprocess(Mat src);

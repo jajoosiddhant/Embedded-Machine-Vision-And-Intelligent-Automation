@@ -10,6 +10,7 @@ int main(int argc, char** argv)
 	int rc;
 	pid_t mainpid;
 	int flag = 1;
+	int opt;
 
 	Point ped_rect[2];
 	Point vehicle_rect[2];
@@ -18,19 +19,46 @@ int main(int argc, char** argv)
 struct timespec temp_start, temp_stop, temp_diff;
 
 	if(argc < 2)
+		help();
+
+	while((opt = getopt(argc, argv, "aplvs")) != -1)
 	{
-		cout << endl << "Usage: sudo ./smart_car input_vdeo_file" << endl;
-		cout << "Exiting Program";
-		exit(EXIT_FAILURE);
+		switch(opt)
+		{
+			case 'a':
+				enable[PED_DETECT_TH] = 1;
+				enable[LANE_FOLLOW_TH] = 1;
+				enable[SIGN_RECOG_TH] = 1;
+				enable[VEH_DETECT_TH] = 1;
+				break;
+			case 'p':
+				enable[PED_DETECT_TH] = 1;
+				break;
+			case 'l':
+				enable[LANE_FOLLOW_TH] = 1;
+				break;
+			case 's':
+				enable[SIGN_RECOG_TH] = 1;
+				break;
+			case 'v':
+				enable[VEH_DETECT_TH] = 1;
+				break;
+			default:
+				help();
+		}
+		if(optind >= argc)
+		{
+			help();
+		}
 	}
 
 	//Declaring VideoCapture and VideoWriter objects to read and write videos
-	VideoCapture capture(argv[1]);
+	VideoCapture capture(argv[optind]);
 	VideoWriter output_v;
 	Size size = Size(COLS*2, ROWS*2);
 //	Size size = Size((int) capture.get(CV_CAP_PROP_FRAME_WIDTH),
 //			 (int) capture.get(CV_CAP_PROP_FRAME_HEIGHT));		//Size of capture object, height and width
-	output_v.open("output.mp4", CV_FOURCC('M','P','4','V'), capture.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
+	output_v.open(argv[optind+1]/*"output.mp4"*/, CV_FOURCC('M','P','4','V'), capture.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
 
 
 	//Load Vehicle xml
@@ -544,16 +572,20 @@ void thread_create(void)
 {
 
 	//Pedestrian Detection Thread
-	rt_param[0].sched_priority=rt_max_prio-2;
-	pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
-	pthread_create(&threads[PED_DETECT_TH],   					// pointer to thread descriptor
-			(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     		// use default attributes
-			pedestrian_detect, 						// thread function entry point
-			(void *)&(threadParams[PED_DETECT_TH]) 				// parameters to pass in
-		      );
-
+	if(enable[PED_DETECT_TH])
+	{
+		rt_param[0].sched_priority=rt_max_prio-2;
+		pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
+		pthread_create(&threads[PED_DETECT_TH],   					// pointer to thread descriptor
+				(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     		// use default attributes
+				pedestrian_detect, 						// thread function entry point
+				(void *)&(threadParams[PED_DETECT_TH]) 				// parameters to pass in
+			      );
+	}
 
 	//Lane Detection Thread
+	if(enable[LANE_FOLLOW_TH])
+	{
 	rt_param[1].sched_priority=rt_max_prio-2;
 	pthread_attr_setschedparam(&rt_sched_attr[1], &rt_param[1]);
 	pthread_create(&threads[LANE_FOLLOW_TH],   					// pointer to thread descriptor
@@ -561,8 +593,11 @@ void thread_create(void)
 			lane_follower, 							// thread function entry point
 			(void *)&(threadParams[LANE_FOLLOW_TH]) 			// parameters to pass in
 		      );
+	}
 
 	//Sign Detection Thread
+	if(enable[SIGN_RECOG_TH])
+	{
 	rt_param[2].sched_priority=rt_max_prio-2;
 	pthread_attr_setschedparam(&rt_sched_attr[2], &rt_param[2]);
 	pthread_create(&threads[SIGN_RECOG_TH],   					// pointer to thread descriptor
@@ -570,8 +605,11 @@ void thread_create(void)
 			sign_recog, 							// thread function entry point
 			(void *)&(threadParams[SIGN_RECOG_TH]) 				// parameters to pass in
 		      );
+	}
 
 	//Vehicle Detection Thread
+	if(enable[VEH_DETECT_TH])
+	{
 	rt_param[3].sched_priority=rt_max_prio-2;
 	pthread_attr_setschedparam(&rt_sched_attr[3], &rt_param[3]);
 	pthread_create(&threads[VEH_DETECT_TH],   					// pointer to thread descriptor
@@ -579,7 +617,7 @@ void thread_create(void)
 			vehicle_detect, 						// thread function entry point
 			(void *)&(threadParams[VEH_DETECT_TH]) 				// parameters to pass in
 		      );
-
+	}
 }
 
 
@@ -1012,4 +1050,17 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
 		}
 	}
 	return(1);
+}
+
+
+void help(void)
+{
+	cout << endl << "Usage: sudo ./smart_car detection_type_1 detection_type_2 ....detection_type_4 input_video_file.mp4 output_video_file.mp4";
+	cout << endl << "-a for all detection tasks";
+	cout << endl << "-p for pedestrian detection";
+	cout << endl << "-l for lane following";
+	cout << endl << "-v for vehicle detection";
+	cout << endl << "-s for road-sign recognition";
+	cout << endl << "Exiting Program" << endl;
+	exit(EXIT_FAILURE);
 }
