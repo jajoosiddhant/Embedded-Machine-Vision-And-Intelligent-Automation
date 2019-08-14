@@ -232,7 +232,7 @@ void* pedestrian_detect(void* threadp)
 		resize(mat, resz_mat, Size(COLS, ROWS));	//resize to 320x240
 
 		//mute_ped.lock();
-		hog.detectMultiScale(resz_mat, img_char.found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
+		hog.detectMultiScale(resz_mat, local_found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
 		//mute_ped.unlock();
 		
 		mute_ped.lock();
