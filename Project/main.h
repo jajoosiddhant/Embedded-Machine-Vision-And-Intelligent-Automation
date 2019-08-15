@@ -20,8 +20,7 @@
 using namespace cv;
 using namespace std;
 
-#define USING_CALTECH_VIDEO
-#define USING_MUTEX
+//#define USING_CALTECH_VIDEO
 
 #ifdef USING_CALTECH_VIDEO
 #define COLS							(320)
@@ -60,9 +59,9 @@ using namespace std;
 #define CANNY_THRESHOLD_2					(120)
 
 //Hough Lines Threshold Values
-#define	HOUGH_THRESHOLD						(40)
+#define	HOUGH_THRESHOLD						(20)
 #define	HOUGH_MIN_LINE_LENGTH					(10)
-#define	HOUGH_MAX_LINE_GAP					(80)
+#define	HOUGH_MAX_LINE_GAP					(50)
 
 
 #define handle_error(msg) \
@@ -87,7 +86,7 @@ struct img_cooordinates
 } img_char;
 
 
-//Variable Declarations
+//Variable Declarations for thread related functions
 pthread_t threads[NUM_THREADS];
 threadParams_t threadParams[NUM_THREADS];
 pthread_attr_t rt_sched_attr[NUM_THREADS];
@@ -96,11 +95,32 @@ int rt_max_prio, rt_min_prio;
 struct sched_param main_param;
 pthread_attr_t main_attr;
 
+//General Variable Declarations
+int enable[4] = {0};
 bool exit_cond;
 char c, output_frame[40];
 Mat g_frame;
 sem_t sem_main, sem_pedestrian, sem_lane, sem_vehicle, sem_sign;
 mutex mute_ped, mute_lane, mute_vehicle, mute_sign;
+
+//Global variables for lane detection
+//Left lane global variables.
+int count_left = 1;
+double avg_slope_left = 0;
+double avg_intercept_left = 0;
+int ybottom_left = 0;
+int ytop_left = 180;
+int nolane_flag_left = 0;
+int nolane_count_left = 0;
+
+//Right lane global variables
+int count_right = 1;
+double avg_slope_right = 0;
+double avg_intercept_right = 0;
+int ybottom_right = 0;
+int ytop_right = 180;
+int nolane_flag_right = 0;
+int nolane_count_right = 0;
 
 //For Vehicle Detection
 CascadeClassifier vehicle_cascade;
@@ -123,6 +143,7 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
 void signal_handler(int signo, siginfo_t *info, void *extra);
 void set_signal_handler(void);
 void print_scope(void);
+void help(void);
 
 //Functions related to lane detect. Copy these in master.
 Mat preprocess(Mat src);
