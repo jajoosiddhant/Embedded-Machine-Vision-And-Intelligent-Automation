@@ -1,29 +1,18 @@
+/**
+ * @file main.c
+ * @brief This file consists of all the functions required for implementing services such as pedestrian detection, lane detection, vehicle detection and traffic signal detection.
+ *
+ * The Code has been executed on JETSON NANO(linux).
+ *
+ * @author Siddhant Jajoo and Sarthak Jain
+ * @date 04/19/2019
+ *
+ * @copyright Copyright (c) 2019
+ *
+ */
+
+
 #include "main.h"
-
-//Not required
-vector<Vec4i> lane_history;
-int lane_history_flag_left = 1;
-int lane_history_flag_right = 1;
-
-//Required
-//Left lane variables global
-int count_left = 1;
-double avg_slope_left = 0;
-double avg_intercept_left = 0;
-int ybottom_left = 0;
-int ytop_left = 180;
-int nolane_flag_left = 0;
-int nolane_count_left = 0;
-
-//Right lane global variables
-int count_right = 1;
-double avg_slope_right = 0;
-double avg_intercept_right = 0;
-int ybottom_right = 0;
-int ytop_right = 180;
-int nolane_flag_right = 0;
-int nolane_count_right = 0;
-
 
 
 int main(int argc, char** argv)
@@ -87,10 +76,7 @@ int main(int argc, char** argv)
 	VideoCapture capture(argv[optind]);
 	VideoWriter output_v;
 	Size size = Size(COLS*2, ROWS*2);
-//	Size size = Size((int) capture.get(CV_CAP_PROP_FRAME_WIDTH),
-//			 (int) capture.get(CV_CAP_PROP_FRAME_HEIGHT));		//Size of capture object, height and width
-	output_v.open(argv[optind+1]/*"output.mp4"*/, CV_FOURCC('M','P','4','V'), capture.get(CV_CAP_PROP_FPS), size, true);	//Opens output object
-
+	output_v.open(argv[optind+1], CV_FOURCC('M','P','4','V'), capture.get(CV_CAP_PROP_FPS), size, true);
 
 	//Load Vehicle xml
 	if( !vehicle_cascade.load(vehicle_cascade_name) )
@@ -146,7 +132,7 @@ int main(int argc, char** argv)
 	
 	while(1)
 	{
-//		clock_gettime(CLOCK_REALTIME, &temp_start);	//uncomment during testing
+//		clock_gettime(CLOCK_REALTIME, &temp_start);										//uncomment during testing
 		capture >> g_frame;		
 		
 		//Counting number of frames
@@ -175,7 +161,8 @@ int main(int argc, char** argv)
 		{
 			sem_post(&sem_sign);
 		}
-        
+        	
+		//Sleep initially once to give the other threads to process and store values in global values
 		if(flag)
 		{
 			sleep(1);
@@ -185,7 +172,7 @@ int main(int argc, char** argv)
 		detector = g_frame.clone();
 		resize(detector, detector, Size(COLS*2, ROWS*2));
 	
-		//Add mutex for pedestrian here
+		//Drawing function for pedestrian here
 		mute_ped.lock();
 		for(int i=0; i<img_char.found_loc.size(); i++)
 		{
@@ -197,25 +184,13 @@ int main(int argc, char** argv)
 		}
 		mute_ped.unlock();
 		
-//		if(!nolane_flag_left)
-//		{
-			mute_lane.lock();
-			//Add mutex for line here
-			line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), CV_RGB(255,0,0), 3, CV_AA);	
-//			line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
-//			mute_lane.unlock();
-//		}
-//		if(!nolane_flag_right)
-//		{
-//			mute_lane.lock();
-			//Add mutex for line here
-//			line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), CV_RGB(255,0,0), 3, CV_AA);	
-			line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
-			mute_lane.unlock();
-//		}
+		//Drawing frunction for lanes here
+		mute_lane.lock();
+		line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), CV_RGB(255,0,0), 3, CV_AA);	
+		line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
+		mute_lane.unlock();
 
-		//line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
-
+		//Drawing function for Vehicles here
 		mute_vehicle.lock();
 		for(int i=0; i<img_char.vehicle_loc.size(); i++)
 		{
@@ -227,7 +202,7 @@ int main(int argc, char** argv)
 		}
 		mute_vehicle.unlock();
 
-				
+		//Drawing function for traffic sign here		
 		mute_sign.lock();
 		for(int i=0; i<img_char.traffic.size(); i++)
 		{
@@ -239,14 +214,15 @@ int main(int argc, char** argv)
 		}
 		mute_sign.unlock();
 
-//		imshow("Video", g_frame);
+
+//		imshow("Video", g_frame);												//Uncomment to view original video
 		c = waitKey(1);
 		imshow("Detector", detector);
 		output_v.write(detector);
 		
-//		clock_gettime(CLOCK_REALTIME, &temp_stop);	//uncomment during testing
+//		clock_gettime(CLOCK_REALTIME, &temp_stop);										//uncomment during testing
 //		delta_t(&temp_stop, &temp_start, &temp_diff);
-//		printf("Time elapsed in waiting: %lu nsecs\n", temp_diff.tv_nsec);	//uncomment during testing
+//		printf("Time elapsed in waiting: %lu nsecs\n", temp_diff.tv_nsec);							//uncomment during testing
 		
 		if((c == 27) || (exit_cond))
 		{
@@ -274,6 +250,11 @@ int main(int argc, char** argv)
 }
 
 
+/**
+ * @brief Callback function for pedestrian detection thread.
+ * @param threadp 
+ * @return void
+ */
 void* pedestrian_detect(void* threadp)
 {
 	
@@ -296,15 +277,13 @@ void* pedestrian_detect(void* threadp)
 	while(1)
 	{
 
-		sem_wait(&sem_pedestrian);				//semaphore from main
+		sem_wait(&sem_pedestrian);												//semaphore from main
 
 		mat = g_frame.clone();
 		cvtColor(mat, mat, CV_BGR2GRAY);
-		resize(mat, resz_mat, Size(COLS, ROWS));	//resize to 320x240
+		resize(mat, resz_mat, Size(COLS, ROWS));										//resize to 320x240
 
-		//mute_ped.lock();
 		hog.detectMultiScale(resz_mat, local_found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
-		//mute_ped.unlock();
 		
 		mute_ped.lock();
 		img_char.found_loc.clear();
@@ -327,6 +306,11 @@ void* pedestrian_detect(void* threadp)
 }
 
 
+/**
+ * @brief Callback function for lane detection thread.
+ * @param threadp 
+ * @return void
+ */
 void* lane_follower(void* threadp)
 {
 	//Variable Declaration
@@ -370,12 +354,12 @@ void* lane_follower(void* threadp)
 
 		Mat roi_mask = Mat::zeros(Size(src_half.cols, src_half.rows), CV_8U);
 		//Points for ROI mask
-		roi_pt[0][0] = Point(2*src_half.cols/5, src_half.rows/5);					//Apex
+		roi_pt[0][0] = Point(2*src_half.cols/5, src_half.rows/5);						//Apex
 		roi_pt[0][1] = Point(3*src_half.cols/5, src_half.rows/5);
-		roi_pt[0][3] = Point(src_half.cols/5, src_half.rows);						//Bottom left vertice
-		roi_pt[0][2] = Point(4*src_half.cols/5 , src_half.rows);			//Bottomk right vertice
+		roi_pt[0][3] = Point(src_half.cols/5, src_half.rows);							//Bottom left vertice
+		roi_pt[0][2] = Point(4*src_half.cols/5 , src_half.rows);						//Bottomk right vertice
 		const Point* pts_list[1] = {roi_pt[0]};
-		fillPoly(roi_mask, pts_list, &num, 1, 255, 8);						//Change to fillConvexPolly for faster results
+		fillPoly(roi_mask, pts_list, &num, 1, 255, 8);								//Change to fillConvexPolly for faster results
 	
 
 		//Detect lanes
@@ -384,14 +368,14 @@ void* lane_follower(void* threadp)
 		vector<Vec4i> right;
 		
 		bitwise_and(contrast, mask, detect_lanes);
-//		imshow("lanes Detected", detect_lanes);
+		//imshow("lanes Detected", detect_lanes);
 		
 		//Applying gaussian filter to reduce noise followed by canny transform for edge detection.
 		GaussianBlur( detect_lanes, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
-		Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);	//Can change to false
+		Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);					//Can change to false for faster results. tradeoff: Accuracy.
 
 		bitwise_and(edge, roi_mask, canny_roi);
-		imshow("Canny Mask", canny_roi);
+		//imshow("Canny Mask", canny_roi);
 		
 		//Detect and Draw Lines
 		HoughLinesP(canny_roi, lines, 1, CV_PI/180, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP );
@@ -431,6 +415,11 @@ void* lane_follower(void* threadp)
 }
 
 
+/**
+ * @brief Callback function for traffic signal detection thread.
+ * @param threadp 
+ * @return void
+ */
 void* sign_recog(void* threadp)
 {
 	//Variable Declaration
@@ -459,9 +448,7 @@ void* sign_recog(void* threadp)
 		resize(mat, resz_mat, Size(COLS, ROWS));
 		equalizeHist(resz_mat, resz_mat);
 
-		//mute_sign.lock();
 		cascade_traffic.detectMultiScale(resz_mat, local_traffic, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(30, 30));
-		//mute_sign.unlock();
 						
 		mute_sign.lock();
 		img_char.traffic.clear();
@@ -484,6 +471,11 @@ void* sign_recog(void* threadp)
 }
 
 
+/**
+ * @brief Callback function for vehicle detection thread.
+ * @param threadp 
+ * @return void
+ */
 void* vehicle_detect(void* threadp)
 {
 	//Variable Declaration
@@ -492,7 +484,7 @@ void* vehicle_detect(void* threadp)
 	int frame_cnt = 0;
 	Mat src, src_half, gray, blur;
 	vector<Rect> local_vehicle_loc;
-//	struct timespec temp_start, temp_stop, temp_diff;
+
 	
 	//Printing thread information 
 	threadcpu_info(threadParams);
@@ -504,16 +496,13 @@ void* vehicle_detect(void* threadp)
 	{
 		sem_wait(&sem_vehicle);
 		
-//		clock_gettime(CLOCK_REALTIME, &temp_start);	//uncomment during testing
 		src = g_frame.clone();
 		
 		src_half = preprocess(src);
 		cvtColor(src_half, gray, CV_RGB2GRAY);
 		GaussianBlur( gray, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
 
-//		mute_vehicle.lock();
 		vehicle_cascade.detectMultiScale(blur, local_vehicle_loc, 1.2, 3, 0, Size(30, 30));
-//		mute_vehicle.unlock();
 
 		mute_vehicle.lock();
 		img_char.vehicle_loc.clear();
@@ -521,10 +510,7 @@ void* vehicle_detect(void* threadp)
 		mute_vehicle.unlock();
 		
 		frame_cnt++;
-		
-//		clock_gettime(CLOCK_REALTIME, &temp_stop);	//uncomment during testing
-//		delta_t(&temp_stop, &temp_start, &temp_diff);
-//		printf("Time elapsed in waiting: %lu nsecs\n", temp_diff.tv_nsec);	//uncomment during testing
+
 		
 		if((c == 27) || (exit_cond))
 		{
@@ -619,10 +605,10 @@ void thread_create(void)
 	{
 		rt_param[0].sched_priority=rt_max_prio-2;
 		pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
-		pthread_create(&threads[PED_DETECT_TH],   					// pointer to thread descriptor
-				(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     		// use default attributes
-				pedestrian_detect, 						// thread function entry point
-				(void *)&(threadParams[PED_DETECT_TH]) 				// parameters to pass in
+		pthread_create(&threads[PED_DETECT_TH],   				// pointer to thread descriptor
+				(pthread_attr_t*)&(rt_sched_attr[PED_DETECT_TH]),     	// use default attributes
+				pedestrian_detect, 					// thread function entry point
+				(void *)&(threadParams[PED_DETECT_TH]) 			// parameters to pass in
 			      );
 	}
 
@@ -687,7 +673,11 @@ void threadcpu_info(threadParams_t* threadParams)
 }
 
 
-
+/**
+ * @brief This function sets the thread attributes and its priority.
+ * @param void 
+ * @return void
+ */
 void set_thread_attr(void)
 {
 	int i, rc;
@@ -701,7 +691,7 @@ void set_thread_attr(void)
 		//rc=pthread_attr_setaffinity_np(&rt_sched_attr[i], sizeof(cpu_set_t), &threadcpu);
 		pthread_attr_setscope(&rt_sched_attr[i], PTHREAD_SCOPE_SYSTEM);
 
-		rt_param[i].sched_priority=rt_max_prio-20;
+		rt_param[i].sched_priority=rt_max_prio-2;
 		pthread_attr_setschedparam(&rt_sched_attr[i], &rt_param[i]);
 
 		threadParams[i].threadIdx=i;
@@ -857,12 +847,12 @@ Mat create_mask(Mat src_half)
 	
 	//Convert Original Image to HLS
 	cvtColor(src_half, hls, COLOR_BGR2HLS);								//Shows white as yellow.
-	imshow("HLS", hls);
+	//imshow("HLS", hls);
 	
 	//Lower value of Saturation makes changes. i.e middle one. Reducing the lower saturation value includes yellow lanes and background as well	
-	//If want to incorpotate yellow lines change lower threshold of saturation to 70 or keep 100 but this also includes noise so do not reduce the middle lower value
+	//If want to incorpotate yellow lines change lower threshold of saturation to 70 or keep 100 but this also includes noise so do not reduce the middle lower value from the current one.
 	inRange(hls, Scalar(20,115,10), Scalar(40,255,40), white);					//Lower saturation can be 118.	
-	imshow("HLS white", white);									//Shows white as yellow.
+	//imshow("HLS white", white);									//Shows white as yellow.
 
 	//Convert Original Image to HSV
 	cvtColor(src_half, hsv, COLOR_BGR2HSV);								//Shows yellow as yellow.
@@ -875,176 +865,19 @@ Mat create_mask(Mat src_half)
 	
 	
 	bitwise_or(white, yellow, mask);
-	//imshow("Mask", mask);
+	//imshow("Mask", mask);			
 
 	return mask;
 }
 
-//Not required. Can delete.
-Mat detect_lanes(Mat contrast, Mat mask, Mat roi_mask)
-{
-	Mat detect_lanes, blur, edge;
-	Mat canny_roi;
-	vector<Vec4i> lines;
-	vector<Vec4i> left;
-	vector<Vec4i> right;
-	
-	bitwise_and(contrast, mask, detect_lanes);
-	imshow("lanes Detected", detect_lanes);
-	
-	//Applying gaussian filter to reduce noise followed by canny transform for edge detection.
-	GaussianBlur( detect_lanes, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
-	Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);	//Can change to false
-
-	bitwise_and(edge, roi_mask, canny_roi);
-	imshow("Canny Mask", canny_roi);
-	
-	//Detect and Draw Lines
-	HoughLinesP(canny_roi, lines, 1, CV_PI/180, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP );
-	for( size_t i = 0; i < lines.size(); i++ )
-	{
-		Vec4i l = lines[i];
-		
-		double slope = (double)((l[3] - l[1])/(double)(l[2] - l[0]));
-		if (slope > 0.5 || slope < (-0.5))
-		{
-			//cout << "y = " << l[0] << "and threshold" << src_res.cols/2 << endl;
-			if(l[0] < (g_frame.cols/2))
-			{
-				left.push_back(lines[i]);
-			}
-			else
-			{
-				right.push_back(lines[i]);
-			}
-			
-			line( g_frame, Point(l[0], l[1] + g_frame.rows/2), Point(l[2], l[3] + g_frame.rows/2), Scalar(0,0,255), 3, CV_AA);	
-		}
-		
-	}
-}
 
 
-//Not required. Can delete.
-Mat roi_mask(Mat src_half)
-{
-		cout << "finished creating Mask ------------" << endl;
-		fflush(stdout);
-	//Creating Polygon ROI
-	Point roi_pt[1][4];
-	int num = 4;
-	cout << "finished creating Mask ------------" << endl;
-	Mat roi_mask = Mat::zeros(Size(src_half.cols, src_half.rows), CV_8U);
-	//Points for ROI mask
-	roi_pt[0][0] = Point(2*src_half.cols/5, src_half.rows/5);					//Apex
-	roi_pt[0][1] = Point(3*src_half.cols/5, src_half.rows/5);
-	roi_pt[0][3] = Point(src_half.cols/5, src_half.rows);						//Bottom left vertice
-	roi_pt[0][2] = Point(4*src_half.cols/5 , src_half.rows);			//Bottomk right vertice
-	const Point* pts_list[1] = {roi_pt[0]};
-	fillPoly(roi_mask, pts_list, &num, 1, 255, 8);						//Change to fillConvexPolly for faster results
-	
-	imshow("ROI MASK", roi_mask);
-	cout << "finished creating Mask" << endl;
-	return roi_mask;
-}
-
-/*
-void process_lanes(vector<Vec4i> lane, int side)
-{
-
-	//Reset Coordinates
-	int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
-	int avg_x1 = 0, avg_y1 = 0, avg_x2 = 0, avg_y2 = 0;			
-
-	if(lane.size() == 0)
-	{
-		if(lane_history_flag_left)
-		{
-			mute_lane.lock();
-			img_char.g_left[0] = 0;
-			img_char.g_left[1] = 0;
-			img_char.g_left[2] = 0;
-			img_char.g_left[3] = 0;
-			mute_lane.unlock();
-			lane_history_flag_left = 0;
-			//left_count++;
-		}
-		return;
-	}
-	
-	if(side == LEFT)
-	{
-		for( size_t i = 0; i < lane.size(); i++ )
-		{
-			Vec4i c = lane[i];
-			
-			x1 += c[0];
-			y1 += c[1];
-			x2 += c[2];
-			y2 += c[3]; 
-		}
-		
-		x1 = x1/lane.size();
-		y1 = y1/lane.size();
-		x2 = x2/lane.size();
-		y2 = y2/lane.size();
-		
-		mute_lane.lock();
-		if(lane_history_flag_left)
-		{
-			img_char.g_left[0] = x1;
-			img_char.g_left[1] = y1;
-			img_char.g_left[2] = x2;
-			img_char.g_left[3] = y2;
-			lane_history_flag_left = 0;
-			//left_count++;
-		}
-		else
-		{
-			img_char.g_left[0] = ((img_char.g_left[0]*left_count) + x1)/(left_count + 1);
-			img_char.g_left[1] = ((img_char.g_left[1]*left_count) + y1)/(left_count + 1);
-			img_char.g_left[2] = ((img_char.g_left[2]*left_count) + x2)/(left_count + 1);
-			img_char.g_left[3] = ((img_char.g_left[3]*left_count) + y2)/(left_count + 1);
-		}
-
-		left_count++;
-
-		//mute_lane.lock();
-		//img_char.g_left[0] = avg_x1;
-		//img_char.g_left[1] = avg_y1;
-		//img_char.g_left[2] = avg_x2;
-		//img_char.g_left[3] = avg_y2;
-		mute_lane.unlock();
-	}
-	else if(side == RIGHT)
-	{
-		for( size_t i = 0; i < lane.size(); i++ )
-		{
-			Vec4i c = lane[i];
-			
-			x1 += c[0];
-			y1 += c[1];
-			x2 += c[2];
-			y2 += c[3]; 
-		}
-		
-		x1 = x1/lane.size();
-		y1 = y1/lane.size();
-		x2 = x2/lane.size();
-		y2 = y2/lane.size();
-		
-		mute_lane.lock();
-		img_char.g_right[0] = x1;
-		img_char.g_right[1] = y1;
-		img_char.g_right[2] = x2;
-		img_char.g_right[3] = y2;
-		mute_lane.unlock();
-	}		
-		
-}
-*/
-
-
+/**
+ * @brief Function to process and get coordinates for left and right lane.
+ * @param lane The lane vector obtained from HoughlinesP.
+ * @param side The macro LEFT or RIGHT which specifies the coordinates the lane vector belongs to. 
+ * @return void
+ */
 void process_lanes(vector<Vec4i> lane, int side)
 {
 
@@ -1062,7 +895,6 @@ void process_lanes(vector<Vec4i> lane, int side)
 			avg_slope_left = 0;
 			avg_intercept_left = 0;
 			count_left = 1;
-			nolane_flag_left = 1;
 			nolane_count_left++;
 			if(nolane_count_left > 10)
 			{
@@ -1076,11 +908,8 @@ void process_lanes(vector<Vec4i> lane, int side)
 			}
 			return;
 		}
-		else
-		{
-			nolane_flag_left = 0;
-		}
 		
+		//Resetting the count for no left lanes detected
 		nolane_count_left = 0;
 		
 		for( size_t i = 0; i < lane.size(); i++ )
@@ -1094,18 +923,14 @@ void process_lanes(vector<Vec4i> lane, int side)
 		}
 		
 		
-		//Calculating avergae values of detected lane coordinates
+		//Calculating avergae values of detected left lane coordinates
 		x1 = x1/lane.size();
 		y1 = y1/lane.size();
 		x2 = x2/lane.size();
 		y2 = y2/lane.size();
 
-		cout << "x1 = " << x1 << endl;
-		cout << "y1 = " << y1 << endl;
-		cout << "x2 = " << x2 << endl;	
-		cout << "y2 = " << y2 << endl;
 		
-		//Returning if by any chance average of the two x coordinates are equal. Eliminating division of zero when calculating slope.
+		//Returning if by any chance average of the two x coordinates are equal. Eliminating division by zero when calculating slope.
 		if(x1 == x2)
 		{
 			return;
@@ -1113,12 +938,9 @@ void process_lanes(vector<Vec4i> lane, int side)
 		
 		//Calculating Slope and Intercept
 		slope = (double)(y2 - y1)/(double)(x2 - x1);
-		cout << "SLOPE= " << slope << endl;
-		intercept = (double)y2 - (double)(slope*x2);
-		cout << "INTERCEPT= " << intercept << endl;
+		intercept = (double)y2 - (double)(slope*x2);		
 		
-		
-		//Assigning the maximum and minimum values for lane detected in y direction to draw lines.
+		//Assigning the maximum and minimum values for left lane detected in y direction to draw lines.
 		if(ybottom_left < y1)
 		{
 			ybottom_left = y1;
@@ -1128,26 +950,18 @@ void process_lanes(vector<Vec4i> lane, int side)
 			ytop_left = y2;
 		}
 		
-		//ytop_left = 40;
-		//ybottom_left = 130
 		
 		if(slope < (-0.5))
 		{
 			//Averaging slope and intercept with history to get consistent results.
 			avg_slope_left = avg_slope_left + (double)(slope - avg_slope_left)/count_left;
 			avg_intercept_left = avg_intercept_left + (double)(intercept - avg_intercept_left)/count_left;
-
-			cout << "AVERAGE SLOPE= " << avg_slope_left << endl;	
-			cout << "AVERAGE INTERCEPT= " << avg_intercept_left << endl;
-
+			
+			//Finding corresponding x-coordinates
 			xtop = (ytop_left - avg_intercept_left)/avg_slope_left;
 			xbottom = (ybottom_left - avg_intercept_left)/avg_slope_left;
 						
 			count_left++;			
-			cout << "xtop = " << xtop << endl;
-			cout << "xbottom = " << xbottom << endl;
-			cout << "ytop = " << ytop_left << endl;
-			cout << "ybottom = " << ybottom_left << endl;		
 		
 			mute_lane.lock();
 			img_char.g_left[0] = (int)xtop;
@@ -1164,7 +978,6 @@ void process_lanes(vector<Vec4i> lane, int side)
 			avg_slope_right = 0;
 			avg_intercept_right = 0;
 			count_right = 1;
-			nolane_flag_right = 1; 
 			nolane_count_right++;
 			if(nolane_count_right > 10)
 			{
@@ -1178,11 +991,8 @@ void process_lanes(vector<Vec4i> lane, int side)
 			}
 			return;
 		}
-		else
-		{
-			nolane_flag_right = 0;
-		}
 
+		//Resetting the count for no right lanes detected
 		nolane_count_right = 0;		
 
 		for( size_t i = 0; i < lane.size(); i++ )
@@ -1196,18 +1006,13 @@ void process_lanes(vector<Vec4i> lane, int side)
 		}
 		
 		
-		//Calculating avergae values of detected lane coordinates
+		//Calculating avergae values of detected right lane coordinates
 		x1 = x1/lane.size();
 		y1 = y1/lane.size();
 		x2 = x2/lane.size();
 		y2 = y2/lane.size();
-
-		cout << "x1 right= " << x1 << endl;
-		cout << "y1 right= " << y1 << endl;
-		cout << "x2 right= " << x2 << endl;	
-		cout << "y2 right= " << y2 << endl;
-		
-		//Returning if by any chance average of the two x coordinates are equal. Eliminating division of zero when calculating slope.
+	
+		//Returning if by any chance average of the two x coordinates are equal. Eliminating division by zero when calculating slope.
 		if(x1 == x2)
 		{
 			return;
@@ -1215,12 +1020,9 @@ void process_lanes(vector<Vec4i> lane, int side)
 		
 		//Calculating Slope and Intercept
 		slope = (double)(y2 - y1)/(double)(x2 - x1);
-		cout << "SLOPE= " << slope << endl;
-		intercept = (double)y2 - (double)(slope*x2);
-		cout << "INTERCEPT= " << intercept << endl;
+		intercept = (double)y2 - (double)(slope*x2);		
 		
-		
-		//Assigning the maximum and minimum values for lane detected in y direction to draw lines.
+		//Assigning the maximum and minimum values for right lane detected in y direction to draw lines.
 		if(ybottom_right < y2)
 		{
 			ybottom_right = y2;
@@ -1230,8 +1032,6 @@ void process_lanes(vector<Vec4i> lane, int side)
 			ytop_right = y1;
 		}
 		
-		//ytop_right = 40;
-		//ybottom_right = 130
 		
 		if(slope > (0.5))
 		{
@@ -1239,17 +1039,11 @@ void process_lanes(vector<Vec4i> lane, int side)
 			avg_slope_right = avg_slope_right + (double)(slope - avg_slope_right)/count_right;
 			avg_intercept_right = avg_intercept_right + (double)(intercept - avg_intercept_right)/count_right;
 
-			cout << "AVERAGE SLOPE= " << avg_slope_right << endl;	
-			cout << "AVERAGE INTERCEPT= " << avg_intercept_right << endl;
-
+			//Finding corresponding x-coordinates
 			xtop = (ytop_right - avg_intercept_right)/avg_slope_right;
 			xbottom = (ybottom_right - avg_intercept_right)/avg_slope_right;
 						
 			count_right++;			
-			cout << "xtop right = " << xtop << endl;
-			cout << "xbottom right = " << xbottom << endl;
-			cout << "ytop right = " << ytop_right << endl;
-			cout << "ybottom right = " << ybottom_right << endl;		
 		
 			mute_lane.lock();
 			img_char.g_right[0] = (int)xtop;
@@ -1261,6 +1055,12 @@ void process_lanes(vector<Vec4i> lane, int side)
 	}		
 }
 
+
+/**
+ * @brief The function prints the PTHREAD scope.
+ * @param void 
+ * @return void
+ */
 void print_scope(void)
 {
 	int scope;
@@ -1281,6 +1081,11 @@ void print_scope(void)
 }
 
 
+/**
+ * @brief The function prints the scheduling policy set.
+ * @param void 
+ * @return void
+ */
 void print_scheduler(void)
 {
 	int schedType;
@@ -1307,12 +1112,24 @@ void print_scheduler(void)
 }
 
 
+/**
+ * @brief Callback function for signal interruption.
+ * @param signo
+ * @param info
+ * @param extra 
+ * @return void
+ */
 void signal_handler(int signo, siginfo_t *info, void *extra)
 {
 	exit_cond = true;
 }
 
 
+/**
+ * @brief The function sets the signal handler for interrupt signal i.e ctrl + c.
+ * @param void 
+ * @return void
+ */
 void set_signal_handler(void)
 {
 	struct sigaction action;
@@ -1328,9 +1145,14 @@ void set_signal_handler(void)
 }
 
 
-/* Function for computing time difference between two input timespec structures and saving in third timespec structure.
- * Reference is provided to seqgen.c by Prof. Sam Siewert for delta_t function 
- * */
+/**
+ * @brief Function for computing time difference between two input timespec structures and saving in third timespec structure.
+ * @reference Reference is provided to seqgen.c by Prof. Sam Siewert for delta_t function.
+ * @param stop Stop time timespec address
+ * @param start start time timespec address
+ * @param delta_t The timespec address where the calculated time difference needs to be stored.
+ * @return void
+ */
 int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t)
 {
 	int dt_sec=stop->tv_sec - start->tv_sec;
@@ -1366,6 +1188,11 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
 }
 
 
+/**
+ * @brief Function that prints the correct command line arguments to be input.
+ * @param void
+ * @return void
+ */
 void help(void)
 {
 	cout << endl << "Usage: sudo ./smart_car detection_type_1 detection_type_2 ....detection_type_4 input_video_file output_video_file.mp4";

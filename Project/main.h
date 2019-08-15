@@ -86,7 +86,7 @@ struct img_cooordinates
 } img_char;
 
 
-//Variable Declarations
+//Variable Declarations for thread related functions
 pthread_t threads[NUM_THREADS];
 threadParams_t threadParams[NUM_THREADS];
 pthread_attr_t rt_sched_attr[NUM_THREADS];
@@ -95,12 +95,32 @@ int rt_max_prio, rt_min_prio;
 struct sched_param main_param;
 pthread_attr_t main_attr;
 
+//General Variable Declarations
 int enable[4] = {0};
 bool exit_cond;
 char c, output_frame[40];
 Mat g_frame;
 sem_t sem_main, sem_pedestrian, sem_lane, sem_vehicle, sem_sign;
 mutex mute_ped, mute_lane, mute_vehicle, mute_sign;
+
+//Global variables for lane detection
+//Left lane global variables.
+int count_left = 1;
+double avg_slope_left = 0;
+double avg_intercept_left = 0;
+int ybottom_left = 0;
+int ytop_left = 180;
+int nolane_flag_left = 0;
+int nolane_count_left = 0;
+
+//Right lane global variables
+int count_right = 1;
+double avg_slope_right = 0;
+double avg_intercept_right = 0;
+int ybottom_right = 0;
+int ytop_right = 180;
+int nolane_flag_right = 0;
+int nolane_count_right = 0;
 
 //For Vehicle Detection
 CascadeClassifier vehicle_cascade;
