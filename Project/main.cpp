@@ -1,5 +1,31 @@
 #include "main.h"
 
+//Not required
+vector<Vec4i> lane_history;
+int lane_history_flag_left = 1;
+int lane_history_flag_right = 1;
+
+//Required
+//Left lane variables global
+int count_left = 1;
+double avg_slope_left = 0;
+double avg_intercept_left = 0;
+int ybottom_left = 0;
+int ytop_left = 180;
+int nolane_flag_left = 0;
+int nolane_count_left = 0;
+
+//Right lane global variables
+int count_right = 1;
+double avg_slope_right = 0;
+double avg_intercept_right = 0;
+int ybottom_right = 0;
+int ytop_right = 180;
+int nolane_flag_right = 0;
+int nolane_count_right = 0;
+
+
+
 int main(int argc, char** argv)
 {
 	XInitThreads();
@@ -171,12 +197,24 @@ int main(int argc, char** argv)
 		}
 		mute_ped.unlock();
 		
-		mute_lane.lock();
-		//Add mutex for line here
-		line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
-		line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
-		mute_lane.unlock();
+//		if(!nolane_flag_left)
+//		{
+			mute_lane.lock();
+			//Add mutex for line here
+			line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), CV_RGB(255,0,0), 3, CV_AA);	
+//			line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
+//			mute_lane.unlock();
+//		}
+//		if(!nolane_flag_right)
+//		{
+//			mute_lane.lock();
+			//Add mutex for line here
+//			line(detector, Point(img_char.g_left[0], img_char.g_left[1] + 180), Point(img_char.g_left[2], img_char.g_left[3] + 180), CV_RGB(255,0,0), 3, CV_AA);	
+			line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
+			mute_lane.unlock();
+//		}
 
+		//line(detector, Point(img_char.g_right[0], img_char.g_right[1] + 180), Point(img_char.g_right[2], img_char.g_right[3] + 180), CV_RGB(255,0,0), 3, CV_AA);
 
 		mute_vehicle.lock();
 		for(int i=0; i<img_char.vehicle_loc.size(); i++)
@@ -910,39 +948,91 @@ Mat roi_mask(Mat src_half)
 	return roi_mask;
 }
 
-
+/*
 void process_lanes(vector<Vec4i> lane, int side)
 {
 
 	//Reset Coordinates
 	int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
-			
-	for( size_t i = 0; i < lane.size(); i++ )
+	int avg_x1 = 0, avg_y1 = 0, avg_x2 = 0, avg_y2 = 0;			
+
+	if(lane.size() == 0)
 	{
-		Vec4i c = lane[i];
-		
-		x1 += c[0];
-		y1 += c[1];
-		x2 += c[2];
-		y2 += c[3]; 
+		if(lane_history_flag_left)
+		{
+			mute_lane.lock();
+			img_char.g_left[0] = 0;
+			img_char.g_left[1] = 0;
+			img_char.g_left[2] = 0;
+			img_char.g_left[3] = 0;
+			mute_lane.unlock();
+			lane_history_flag_left = 0;
+			//left_count++;
+		}
+		return;
 	}
 	
-	x1 = x1/lane.size();
-	y1 = y1/lane.size();
-	x2 = x2/lane.size();
-	y2 = y2/lane.size();
-			
 	if(side == LEFT)
 	{
+		for( size_t i = 0; i < lane.size(); i++ )
+		{
+			Vec4i c = lane[i];
+			
+			x1 += c[0];
+			y1 += c[1];
+			x2 += c[2];
+			y2 += c[3]; 
+		}
+		
+		x1 = x1/lane.size();
+		y1 = y1/lane.size();
+		x2 = x2/lane.size();
+		y2 = y2/lane.size();
+		
 		mute_lane.lock();
-		img_char.g_left[0] = x1;
-		img_char.g_left[1] = y1;
-		img_char.g_left[2] = x2;
-		img_char.g_left[3] = y2;
+		if(lane_history_flag_left)
+		{
+			img_char.g_left[0] = x1;
+			img_char.g_left[1] = y1;
+			img_char.g_left[2] = x2;
+			img_char.g_left[3] = y2;
+			lane_history_flag_left = 0;
+			//left_count++;
+		}
+		else
+		{
+			img_char.g_left[0] = ((img_char.g_left[0]*left_count) + x1)/(left_count + 1);
+			img_char.g_left[1] = ((img_char.g_left[1]*left_count) + y1)/(left_count + 1);
+			img_char.g_left[2] = ((img_char.g_left[2]*left_count) + x2)/(left_count + 1);
+			img_char.g_left[3] = ((img_char.g_left[3]*left_count) + y2)/(left_count + 1);
+		}
+
+		left_count++;
+
+		//mute_lane.lock();
+		//img_char.g_left[0] = avg_x1;
+		//img_char.g_left[1] = avg_y1;
+		//img_char.g_left[2] = avg_x2;
+		//img_char.g_left[3] = avg_y2;
 		mute_lane.unlock();
 	}
 	else if(side == RIGHT)
 	{
+		for( size_t i = 0; i < lane.size(); i++ )
+		{
+			Vec4i c = lane[i];
+			
+			x1 += c[0];
+			y1 += c[1];
+			x2 += c[2];
+			y2 += c[3]; 
+		}
+		
+		x1 = x1/lane.size();
+		y1 = y1/lane.size();
+		x2 = x2/lane.size();
+		y2 = y2/lane.size();
+		
 		mute_lane.lock();
 		img_char.g_right[0] = x1;
 		img_char.g_right[1] = y1;
@@ -951,6 +1041,224 @@ void process_lanes(vector<Vec4i> lane, int side)
 		mute_lane.unlock();
 	}		
 		
+}
+*/
+
+
+void process_lanes(vector<Vec4i> lane, int side)
+{
+
+	//Reset Coordinates
+	double x1 = 0, y1 = 0, x2 = 0, y2 = 0;
+	int xtop, xbottom; //ytop, ybottom;
+	double slope;
+	double intercept;
+	
+	//Origin is top left corner
+	if(side == LEFT)
+	{
+		if(lane.size() == 0)
+		{
+			avg_slope_left = 0;
+			avg_intercept_left = 0;
+			count_left = 1;
+			nolane_flag_left = 1;
+			nolane_count_left++;
+			if(nolane_count_left > 10)
+			{
+				mute_lane.lock();
+				img_char.g_left[0] = 0;
+				img_char.g_left[1] = 0;
+				img_char.g_left[2] = 0;
+				img_char.g_left[3] = 0;
+				nolane_count_left = 0;
+				mute_lane.unlock(); 
+			}
+			return;
+		}
+		else
+		{
+			nolane_flag_left = 0;
+		}
+		
+		nolane_count_left = 0;
+		
+		for( size_t i = 0; i < lane.size(); i++ )
+		{
+			Vec4i c = lane[i];
+			
+			x1 += c[0];
+			y1 += c[1];
+			x2 += c[2];
+			y2 += c[3]; 
+		}
+		
+		
+		//Calculating avergae values of detected lane coordinates
+		x1 = x1/lane.size();
+		y1 = y1/lane.size();
+		x2 = x2/lane.size();
+		y2 = y2/lane.size();
+
+		cout << "x1 = " << x1 << endl;
+		cout << "y1 = " << y1 << endl;
+		cout << "x2 = " << x2 << endl;	
+		cout << "y2 = " << y2 << endl;
+		
+		//Returning if by any chance average of the two x coordinates are equal. Eliminating division of zero when calculating slope.
+		if(x1 == x2)
+		{
+			return;
+		}
+		
+		//Calculating Slope and Intercept
+		slope = (double)(y2 - y1)/(double)(x2 - x1);
+		cout << "SLOPE= " << slope << endl;
+		intercept = (double)y2 - (double)(slope*x2);
+		cout << "INTERCEPT= " << intercept << endl;
+		
+		
+		//Assigning the maximum and minimum values for lane detected in y direction to draw lines.
+		if(ybottom_left < y1)
+		{
+			ybottom_left = y1;
+		}
+		if(ytop_left > y2)
+		{
+			ytop_left = y2;
+		}
+		
+		//ytop_left = 40;
+		//ybottom_left = 130
+		
+		if(slope < (-0.5))
+		{
+			//Averaging slope and intercept with history to get consistent results.
+			avg_slope_left = avg_slope_left + (double)(slope - avg_slope_left)/count_left;
+			avg_intercept_left = avg_intercept_left + (double)(intercept - avg_intercept_left)/count_left;
+
+			cout << "AVERAGE SLOPE= " << avg_slope_left << endl;	
+			cout << "AVERAGE INTERCEPT= " << avg_intercept_left << endl;
+
+			xtop = (ytop_left - avg_intercept_left)/avg_slope_left;
+			xbottom = (ybottom_left - avg_intercept_left)/avg_slope_left;
+						
+			count_left++;			
+			cout << "xtop = " << xtop << endl;
+			cout << "xbottom = " << xbottom << endl;
+			cout << "ytop = " << ytop_left << endl;
+			cout << "ybottom = " << ybottom_left << endl;		
+		
+			mute_lane.lock();
+			img_char.g_left[0] = (int)xtop;
+			img_char.g_left[1] = (int)ytop_left;
+			img_char.g_left[2] = (int)xbottom;
+			img_char.g_left[3] = (int)ybottom_left;
+			mute_lane.unlock();
+		}
+	}
+	else if(side == RIGHT)
+	{
+		if(lane.size() == 0)
+		{
+			avg_slope_right = 0;
+			avg_intercept_right = 0;
+			count_right = 1;
+			nolane_flag_right = 1; 
+			nolane_count_right++;
+			if(nolane_count_right > 10)
+			{
+				mute_lane.lock();
+				img_char.g_right[0] = 0;
+				img_char.g_right[1] = 0;
+				img_char.g_right[2] = 0;
+				img_char.g_right[3] = 0;
+				nolane_count_right = 0;
+				mute_lane.unlock();
+			}
+			return;
+		}
+		else
+		{
+			nolane_flag_right = 0;
+		}
+
+		nolane_count_right = 0;		
+
+		for( size_t i = 0; i < lane.size(); i++ )
+		{
+			Vec4i c = lane[i];
+			
+			x1 += c[0];
+			y1 += c[1];
+			x2 += c[2];
+			y2 += c[3]; 
+		}
+		
+		
+		//Calculating avergae values of detected lane coordinates
+		x1 = x1/lane.size();
+		y1 = y1/lane.size();
+		x2 = x2/lane.size();
+		y2 = y2/lane.size();
+
+		cout << "x1 right= " << x1 << endl;
+		cout << "y1 right= " << y1 << endl;
+		cout << "x2 right= " << x2 << endl;	
+		cout << "y2 right= " << y2 << endl;
+		
+		//Returning if by any chance average of the two x coordinates are equal. Eliminating division of zero when calculating slope.
+		if(x1 == x2)
+		{
+			return;
+		}
+		
+		//Calculating Slope and Intercept
+		slope = (double)(y2 - y1)/(double)(x2 - x1);
+		cout << "SLOPE= " << slope << endl;
+		intercept = (double)y2 - (double)(slope*x2);
+		cout << "INTERCEPT= " << intercept << endl;
+		
+		
+		//Assigning the maximum and minimum values for lane detected in y direction to draw lines.
+		if(ybottom_right < y2)
+		{
+			ybottom_right = y2;
+		}
+		if(ytop_right > y1)
+		{
+			ytop_right = y1;
+		}
+		
+		//ytop_right = 40;
+		//ybottom_right = 130
+		
+		if(slope > (0.5))
+		{
+			//Averaging slope and intercept with history to get consistent results.
+			avg_slope_right = avg_slope_right + (double)(slope - avg_slope_right)/count_right;
+			avg_intercept_right = avg_intercept_right + (double)(intercept - avg_intercept_right)/count_right;
+
+			cout << "AVERAGE SLOPE= " << avg_slope_right << endl;	
+			cout << "AVERAGE INTERCEPT= " << avg_intercept_right << endl;
+
+			xtop = (ytop_right - avg_intercept_right)/avg_slope_right;
+			xbottom = (ybottom_right - avg_intercept_right)/avg_slope_right;
+						
+			count_right++;			
+			cout << "xtop right = " << xtop << endl;
+			cout << "xbottom right = " << xbottom << endl;
+			cout << "ytop right = " << ytop_right << endl;
+			cout << "ybottom right = " << ybottom_right << endl;		
+		
+			mute_lane.lock();
+			img_char.g_right[0] = (int)xtop;
+			img_char.g_right[1] = (int)ytop_right;
+			img_char.g_right[2] = (int)xbottom;
+			img_char.g_right[3] = (int)ybottom_right;
+			mute_lane.unlock();
+		}
+	}		
 }
 
 void print_scope(void)
