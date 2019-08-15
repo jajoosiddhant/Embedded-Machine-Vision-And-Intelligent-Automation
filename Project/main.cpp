@@ -28,6 +28,8 @@ int main(int argc, char** argv)
 	int opt;
 	bool options = false;
 
+	int radius;
+	string text;
 	Point ped_rect[2];
 	Point vehicle_rect[2];
 	Point sign_rect[2];
@@ -132,7 +134,7 @@ int main(int argc, char** argv)
 	
 	while(1)
 	{
-//		clock_gettime(CLOCK_REALTIME, &temp_start);										//uncomment during testing
+//		clock_gettime(CLOCK_REALTIME, &temp_start);				//uncomment during testing
 		capture >> g_frame;		
 		
 		//Counting number of frames
@@ -198,8 +200,17 @@ int main(int argc, char** argv)
 			vehicle_rect[0].y = img_char.vehicle_loc[i].y + 180;
 			vehicle_rect[1].x = img_char.vehicle_loc[i].x + img_char.vehicle_loc[i].width;
 			vehicle_rect[1].y = img_char.vehicle_loc[i].y + img_char.vehicle_loc[i].height + 180;
+			radius = cvRound((img_char.vehicle_loc[i].width + img_char.vehicle_loc[i].height)*0.25*1.2);
+			if(radius < 20)
+				text = "Speed up";
+			else if((radius >= 20) && (radius < 28))
+				text = "Maintain speed";
+			else if(radius <= 28)
+				text = "Slow down";
+//			cout << "Thresholding value: " << radius << endl;
 			rectangle(detector, vehicle_rect[0], vehicle_rect[1], CV_RGB(0, 0, 255));
 		}
+		putText(detector, text, Point(0, 24), FONT_HERSHEY_SIMPLEX, 1, CV_RGB(0, 0, 255), 2, 8, false);
 		mute_vehicle.unlock();
 
 		//Drawing function for traffic sign here		
@@ -500,9 +511,8 @@ void* vehicle_detect(void* threadp)
 		
 		src_half = preprocess(src);
 		cvtColor(src_half, gray, CV_RGB2GRAY);
-		GaussianBlur( gray, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
 
-		vehicle_cascade.detectMultiScale(blur, local_vehicle_loc, 1.2, 3, 0, Size(30, 30));
+		vehicle_cascade.detectMultiScale(gray, local_vehicle_loc, 1.2, 4, 0, Size(16, 16), gray.size());
 
 		mute_vehicle.lock();
 		img_char.vehicle_loc.clear();
