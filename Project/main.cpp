@@ -27,6 +27,7 @@ int main(int argc, char** argv)
 	int flag = 1;
 	int opt;
 	bool options = false;
+	char output_frames[50];
 
 	int radius;
 	string text;
@@ -229,6 +230,8 @@ int main(int argc, char** argv)
 //		imshow("Video", g_frame);		//Uncomment to view original video
 		c = waitKey(1);
 		imshow("Detector", detector);
+//		sprintf(output_frames, "./frames_snapshot/frame%d.jpg", frame_cnt);
+//		imwrite(output_frames, detector);
 		output_v.write(detector);
 		
 //		clock_gettime(CLOCK_REALTIME, &temp_stop);			//uncomment during testing
