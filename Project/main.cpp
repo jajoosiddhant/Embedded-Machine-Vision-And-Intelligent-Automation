@@ -1,5 +1,5 @@
 /**
- * @file main.c
+ * @file main.cpp
  * @brief This file consists of all the functions required for implementing services such as pedestrian detection, lane detection, vehicle detection and traffic signal detection.
  *
  * The Code has been executed on JETSON NANO(linux).
@@ -134,7 +134,7 @@ int main(int argc, char** argv)
 	
 	while(1)
 	{
-//		clock_gettime(CLOCK_REALTIME, &temp_start);				//uncomment during testing
+//		clock_gettime(CLOCK_REALTIME, &temp_start);			//uncomment during testing
 		capture >> g_frame;		
 		
 		//Counting number of frames
@@ -226,14 +226,14 @@ int main(int argc, char** argv)
 		mute_sign.unlock();
 
 
-//		imshow("Video", g_frame);												//Uncomment to view original video
+//		imshow("Video", g_frame);		//Uncomment to view original video
 		c = waitKey(1);
 		imshow("Detector", detector);
 		output_v.write(detector);
 		
-//		clock_gettime(CLOCK_REALTIME, &temp_stop);										//uncomment during testing
+//		clock_gettime(CLOCK_REALTIME, &temp_stop);			//uncomment during testing
 //		delta_t(&temp_stop, &temp_start, &temp_diff);
-//		printf("Time elapsed in waiting: %lu nsecs\n", temp_diff.tv_nsec);							//uncomment during testing
+//		printf("Time elapsed in waiting: %lu nsecs\n", temp_diff.tv_nsec);		//uncomment during testing
 		
 		if((c == 27) || (exit_cond))
 		{
@@ -288,11 +288,11 @@ void* pedestrian_detect(void* threadp)
 	while(1)
 	{
 
-		sem_wait(&sem_pedestrian);												//semaphore from main
+		sem_wait(&sem_pedestrian);			//semaphore from main
 
 		mat = g_frame.clone();
 		cvtColor(mat, mat, CV_BGR2GRAY);
-		resize(mat, resz_mat, Size(COLS, ROWS));										//resize to 320x240
+		resize(mat, resz_mat, Size(COLS, ROWS));			//resize to 320x240
 
 		hog.detectMultiScale(resz_mat, local_found_loc, 0, Size(8, 8), Size(0, 0), 1.05, 2, false);
 		
@@ -365,12 +365,12 @@ void* lane_follower(void* threadp)
 
 		Mat roi_mask = Mat::zeros(Size(src_half.cols, src_half.rows), CV_8U);
 		//Points for ROI mask
-		roi_pt[0][0] = Point(2*src_half.cols/5, src_half.rows/5);						//Apex
+		roi_pt[0][0] = Point(2*src_half.cols/5, src_half.rows/5);			//Apex
 		roi_pt[0][1] = Point(3*src_half.cols/5, src_half.rows/5);
-		roi_pt[0][3] = Point(src_half.cols/5, src_half.rows);							//Bottom left vertice
-		roi_pt[0][2] = Point(4*src_half.cols/5 , src_half.rows);						//Bottomk right vertice
+		roi_pt[0][3] = Point(src_half.cols/5, src_half.rows);				//Bottom left vertice
+		roi_pt[0][2] = Point(4*src_half.cols/5 , src_half.rows);			//Bottomk right vertice
 		const Point* pts_list[1] = {roi_pt[0]};
-		fillPoly(roi_mask, pts_list, &num, 1, 255, 8);								//Change to fillConvexPolly for faster results
+		fillPoly(roi_mask, pts_list, &num, 1, 255, 8);				//Change to fillConvexPolly for faster results
 	
 
 		//Detect lanes
@@ -383,7 +383,7 @@ void* lane_follower(void* threadp)
 		
 		//Applying gaussian filter to reduce noise followed by canny transform for edge detection.
 		GaussianBlur( detect_lanes, blur, Size(5,5), 0, 0, BORDER_DEFAULT );
-		Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);					//Can change to false for faster results. tradeoff: Accuracy.
+		Canny(blur, edge, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2, 3, true);		//Can change to false for faster results. tradeoff: Accuracy.
 
 		bitwise_and(edge, roi_mask, canny_roi);
 		//imshow("Canny Mask", canny_roi);
@@ -455,11 +455,12 @@ void* sign_recog(void* threadp)
 	{
 		sem_wait(&sem_sign);
 		mat = g_frame.clone();
-		cvtColor(mat, mat, CV_BGR2GRAY);
-		resize(mat, resz_mat, Size(COLS, ROWS));
-		equalizeHist(resz_mat, resz_mat);
+		mat = mat(Rect(0, 0, mat.cols, mat.rows/2));
+		resize(mat, resz_mat, Size(mat.cols/2, mat.rows/2));
+//		cvtColor(mat, mat, CV_BGR2GRAY);
 
-		cascade_traffic.detectMultiScale(resz_mat, local_traffic, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(30, 30));
+		cascade_traffic.detectMultiScale(resz_mat, local_traffic, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(4, 4), resz_mat.size()/* Size(30, 30)*/);
+//		cascade_traffic.detectMultiScale(resz_mat, local_traffic, 1.1, 3, CASCADE_DO_CANNY_PRUNING, Size(0, 0), resz_mat.size()/* Size(30, 30)*/);
 						
 		mute_sign.lock();
 		img_char.traffic.clear();
@@ -856,7 +857,7 @@ Mat create_mask(Mat src_half)
 	Mat mask;
 	
 	//Convert Original Image to HLS
-	cvtColor(src_half, hls, COLOR_BGR2HLS);								//Shows white as yellow.
+	cvtColor(src_half, hls, COLOR_BGR2HLS);					//Shows white as yellow.
 	//imshow("HLS", hls);
 	
 	//Lower value of Saturation makes changes. i.e middle one. Reducing the lower saturation value includes yellow lanes and background as well	
