@@ -84,8 +84,10 @@ Using a scheduler and changing the scheduling policy to FIFO drastically increas
 For future submissions, a lane departure warning system can be implemented by building upon the current lane following system. Traffic sign recognition can be improved and made faster by removing false negatives, adding more road-signs and pre-processing the image respectively. Making the system smarter by detecting vehicles in adjacent lanes and accelerating/decelerating based on the distance between the vehicle in front and the car can be implemented.  
    
     
- The entire project analysis and documentation can be found [here]().
+The entire project analysis and documentation can be found [here](https://github.com/jajoosiddhant/Embedded-Machine-Vision-And-Intelligent-Automation/blob/master/Project/Report.pdf).
    
- The entire project code zip file can be found [here](https://github.com/jajoosiddhant/Embedded-Machine-Vision-And-Intelligent-Automation/blob/master/Project/Sarthak_Jain_%26_Siddhant_Jajoo_code.zip).  
+The entire project code zip file can be found [here](https://github.com/jajoosiddhant/Embedded-Machine-Vision-And-Intelligent-Automation/blob/master/Project/Sarthak_Jain_%26_Siddhant_Jajoo_code.zip).  
    
- The project PPT can be found [here](https://github.com/jajoosiddhant/Embedded-Machine-Vision-And-Intelligent-Automation/blob/master/Project/Project%20Presentation.pptx).  
+The project PPT can be found [here](https://github.com/jajoosiddhant/Embedded-Machine-Vision-And-Intelligent-Automation/blob/master/Project/Project%20Presentation.pptx).  
+  
+Output Project video zip file can be found [here](https://github.com/jajoosiddhant/Embedded-Machine-Vision-And-Intelligent-Automation/blob/master/Project/Sarthak_Jain%26Siddhant_Jajoo_codes_videos.zip).   
