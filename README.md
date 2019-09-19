@@ -2,6 +2,6 @@
 
 Projects/Assignments completed under Prof. Sam Siewert in Embedded Machine Vision and Intelligent Automation.
 
-Each Folder consists of a readme file describing about the Project/Assignment/Homework.
+The Final Project for the course can be found [here](https://github.com/jajoosiddhant/Embedded-Machine-Vision-And-Intelligent-Automation/tree/master/Project).
 
 Contributor - Siddhant Jajoo
